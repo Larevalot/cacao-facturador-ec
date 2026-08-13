@@ -1,0 +1,12 @@
+cacao_facturador.db
+cacao_facturador.db-wal
+cacao_facturador.db-shm
+*.db
+*.db-wal
+*.db-shm
+config.json
+*.json
+uploads_*
+*.p12
+*.pfx
+dist/

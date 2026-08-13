@@ -1,0 +1,45 @@
+# Rust / Cargo build outputs
+/target
+
+# Node / Vite build outputs
+node_modules/
+dist/
+.svelte-kit/
+.vite/
+
+# SQLite databases & local data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+cacao_facturador.db
+data/
+
+# Certificados de Firma Electrónica (.p12, .pfx, .pem, .key) y datos de prueba
+*.p12
+*.pfx
+*.pem
+*.key
+uploads_*
+config.json
+
+# XMLs de prueba generados
+factura_*.xml
+test_*.rs
+
+# Archivos de entorno y temporales
+.env
+.env.*
+*.log
+scratch/
+tmp/
+
+# Archivos de agente e IDEs
+.agents/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

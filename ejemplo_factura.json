@@ -1,0 +1,31 @@
+{
+  "secuencial": "000000001",
+  "fecha_emision": "07/08/2026",
+  "cliente": {
+    "tipo_identificacion": "05",
+    "razon_social": "JUAN PEREZ",
+    "identificacion": "1722222222",
+    "direccion": "Quito, Ecuador",
+    "email": "cliente@example.com",
+    "telefono": "0999999999"
+  },
+  "detalles": [
+    {
+      "codigo_principal": "SERV-001",
+      "codigo_auxiliar": "DESEV",
+      "descripcion": "Desarrollo de Software en Rust",
+      "cantidad": 1.0,
+      "precio_unitario": 150.0,
+      "descuento": 0.0,
+      "codigo_porcentaje_iva": "4",
+      "tarifa_iva": 15.0
+    }
+  ],
+  "formas_pago": [
+    {
+      "forma_pago": "01",
+      "total": 172.5
+    }
+  ],
+  "propina": 0.0
+}

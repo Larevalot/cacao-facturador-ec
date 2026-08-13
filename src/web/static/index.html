@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cacao Facturador & Inventario SRI (Rust + SQLite)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* MODO OSCURO (Default: Café Chocolate & Negro) */
+      --bg-primary: #140E0A;
+      --bg-secondary: #1E1510;
+      --bg-card: #281C15;
+      --bg-card-hover: #35251C;
+      --bg-input: #17100B;
+      --border-color: #423024;
+      --border-focus: #C86D27;
+      
+      --text-main: #FDFBF7;
+      --text-muted: #BBA99B;
+      --text-dark: #120C08;
+      
+      --accent-color: #D27D2D;
+      --accent-hover: #E08A3C;
+      --accent-light: rgba(210, 125, 45, 0.15);
+      --chocolate-brand: #7B4A26;
+      --chocolate-dark: #3D2314;
+      
+      --success-color: #22c55e;
+      --success-bg: rgba(34, 197, 94, 0.15);
+      --danger-color: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      
+      --card-shadow: 0 16px 35px -10px rgba(0, 0, 0, 0.6);
+      --radius-card: 1.25rem;
+      --radius-input: 0.75rem;
+      --radius-pill: 999px;
+    }
+
+    [data-theme="light"] {
+      /* MODO CLARO (Café Chocolate & Blanco) */
+      --bg-primary: #FAF6F0;
+      --bg-secondary: #F3ECE2;
+      --bg-card: #FFFFFF;
+      --bg-card-hover: #FDFBF7;
+      --bg-input: #FAF6F0;
+      --border-color: #EADECF;
+      --border-focus: #7B4A26;
+      
+      --text-main: #2B170B;
+      --text-muted: #7A6658;
+      --text-dark: #FFFFFF;
+      
+      --accent-color: #7B4A26;
+      --accent-hover: #5C351B;
+      --accent-light: rgba(123, 74, 38, 0.1);
+      --chocolate-brand: #5C351B;
+      --chocolate-dark: #2B170B;
+      
+      --success-color: #16a34a;
+      --success-bg: rgba(22, 163, 74, 0.1);
+      --danger-color: #dc2626;
+      --danger-bg: rgba(220, 38, 38, 0.1);
+      
+      --card-shadow: 0 12px 30px -8px rgba(61, 35, 20, 0.08);
+    }
+
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: 'Montserrat', sans-serif;
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    body { 
+      background-color: var(--bg-primary); 
+      color: var(--text-main); 
+      padding: 1.5rem; 
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    
+    .container { 
+      max-width: 1200px; 
+      margin: 0 auto; 
+    }
+
+    /* BARRA SUPERIOR PERSISTENTE (IZQUIERDA: MODO CLARO/OSCURO + BUSCAR ACTUALIZACIONES) */
+    .top-bar-persistent {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .top-bar-left-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .top-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.55rem 1.1rem;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .top-btn:hover {
+      border-color: var(--accent-color);
+      transform: translateY(-1px);
+    }
+
+    .brand-logo-top {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 800;
+      font-size: 1.3rem;
+      color: var(--text-main);
+    }
+
+    .brand-logo-top .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #7B4A26, #3D2314);
+      border-radius: var(--radius-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+    }
+
+    /* PANTALLA PIN / BLOQUEO */
+    .pin-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 70vh;
+    }
+
+    .pin-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-card);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      box-shadow: var(--card-shadow);
+    }
+
+    .pin-box h2 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: var(--accent-color);
+    }
+
+    .pin-box p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .pin-input-group {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .pin-digit {
+      width: 50px;
+      height: 55px;
+      font-size: 1.6rem;
+      font-weight: 700;
+      text-align: center;
+      border-radius: var(--radius-input);
+      border: 2px solid var(--border-color);
+      background: var(--bg-input);
+      color: var(--text-main);
+    }
+
+    .pin-digit:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+
+    /* PANTALLA DASHBOARD (4 CAJAS PRINCIPALES) */
+    .dashboard-header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .dashboard-header h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .dashboard-header p {
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.75rem;
+    }
+
+    .dash-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-card);
+      padding: 2.2rem 1.75rem;
+      text-align: center;
+      cursor: pointer;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dash-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-color);
+      transform: translateY(-4px);
+    }
+
+    .dash-icon-box {
+      width: 70px;
+      height: 70px;
+      background: var(--accent-light);
+      border: 1px solid var(--accent-color);
+      border-radius: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+    }
+
+    .dash-card h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .dash-card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* LAYOUT CON SIDEBAR REDONDEADA PARA SECCIONES INTERNAS */
+    .section-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 1.75rem;
+    }
+
+    @media(max-width: 850px) {
+      .section-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* SIDEBAR REDONDEADA */
+    .sidebar-rounded {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-card);
+      padding: 1.25rem 1rem;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      height: fit-content;
+    }
+
+    .sidebar-header-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.65rem 1rem;
+      border-radius: var(--radius-input);
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .sidebar-header-btn:hover {
+      color: var(--text-main);
+      border-color: var(--accent-color);
+    }
+
+    .sidebar-nav-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-input);
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-align: left;
+    }
+
+    .sidebar-nav-btn:hover {
+      background: var(--bg-secondary);
+      color: var(--text-main);
+      border-color: var(--border-color);
+    }
+
+    .sidebar-nav-btn.active {
+      background: var(--accent-color);
+      color: var(--text-dark);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ESTILOS DE COMPONENTES INTERNOS */
+    .card { 
+      background-color: var(--bg-card); 
+      border: 1px solid var(--border-color); 
+      border-radius: var(--radius-card); 
+      padding: 1.75rem; 
+      box-shadow: var(--card-shadow); 
+      margin-bottom: 1.5rem; 
+    }
+    
+    .card h2 { 
+      font-size: 1.2rem; 
+      font-weight: 700; 
+      margin-bottom: 1.25rem; 
+      border-bottom: 1px solid var(--border-color); 
+      padding-bottom: 0.75rem; 
+      color: var(--text-main); 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between; 
+    }
+
+    .form-group { margin-bottom: 1.1rem; }
+    label { display: block; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    input, select, textarea { width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 0.7rem 0.9rem; border-radius: var(--radius-input); font-size: 0.92rem; font-weight: 500; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-light); }
+
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.9rem; }
+
+    .btn { 
+      background-color: var(--accent-color); color: var(--text-dark); border: none; padding: 0.85rem 1.6rem; font-weight: 700; font-size: 0.92rem; border-radius: var(--radius-input); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; width: 100%; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    }
+    .btn:hover { background-color: var(--accent-hover); transform: translateY(-2px); }
+    .btn-secondary { background: var(--bg-secondary); color: var(--text-main); border: 1px solid var(--border-color); }
+    .btn-secondary:hover { background: var(--border-color); }
+    .btn-sm { padding: 0.45rem 0.9rem; font-size: 0.82rem; width: auto; border-radius: var(--radius-pill); }
+    .btn-danger { background: var(--danger-bg); color: var(--danger-color); border: 1px solid var(--danger-color); }
+    .btn-danger:hover { background: var(--danger-color); color: #fff; }
+
+    .table-container { overflow-x: auto; border-radius: var(--radius-input); border: 1px solid var(--border-color); margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { text-align: left; color: var(--text-muted); background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 0.75rem 0.6rem; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; }
+    td { padding: 0.65rem 0.6rem; border-bottom: 1px solid var(--border-color); background: var(--bg-card); }
+
+    .totales-box { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-input); padding: 1.25rem; margin-top: 1.5rem; text-align: right; }
+    .totales-row { display: flex; justify-content: space-between; padding: 0.35rem 0; font-size: 0.9rem; color: var(--text-muted); }
+    .totales-row.total-final { font-size: 1.3rem; font-weight: 800; color: var(--accent-color); border-top: 2px dashed var(--border-color); margin-top: 0.6rem; padding-top: 0.6rem; }
+
+    .status-badge { display: inline-block; padding: 0.35rem 0.85rem; border-radius: var(--radius-pill); font-size: 0.8rem; font-weight: 800; }
+    .status-AUTORIZADO { background: var(--success-bg); color: var(--success-color); border: 1px solid var(--success-color); }
+    .status-RECIBIDA { background: var(--accent-light); color: var(--accent-color); border: 1px solid var(--accent-color); }
+    .status-DEVUELTA, .status-NO_AUTORIZADO, .status-ERROR { background: var(--danger-bg); color: var(--danger-color); border: 1px solid var(--danger-color); }
+
+    pre { font-family: 'JetBrains Mono', monospace; background: var(--bg-input); padding: 1rem; border-radius: var(--radius-input); overflow-x: auto; font-size: 0.8rem; border: 1px solid var(--border-color); color: var(--text-main); }
+
+    /* MODAL */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-card); padding: 1.75rem; width: 100%; max-width: 500px; box-shadow: var(--card-shadow); }
+
+    .view-container { display: none; }
+    .view-container.active { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- BARRA SUPERIOR PERSISTENTE -->
+  <!-- Arriba a la izquierda SIEMPRE dos botones: [Modo claro/oscuro] [Buscar actualizaciones] -->
+  <div class="top-bar-persistent">
+    <div class="top-bar-left-actions">
+      <button type="button" class="top-btn" id="btn-theme-toggle" aria-label="Modo claro u oscuro">
+        <span id="theme-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></span>
+        <span id="theme-text">Modo Oscuro</span>
+      </button>
+
+      <button type="button" class="top-btn" id="btn-buscar-actualizaciones" aria-label="Buscar actualizaciones">
+        <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></span>
+        <span>Buscar actualizaciones</span>
+      </button>
+    </div>
+
+    <div class="brand-logo-top">
+      <img src="/LOGO.png" alt="Logo Cacao" class="logo-img" />
+      <span>Cacao Facturador</span>
+      <button type="button" class="top-btn" id="btn-lock-app" style="margin-left: 0.5rem; display: none;" title="Bloquear App"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 0: BLOQUEO / CREAR PIN DE BIENVENIDA (SPLIT SCREEN 2 SECCIONES) -->
+  <div id="view-pin" class="view-container active">
+    <div class="pin-container">
+      <div class="pin-split-card">
+        <!-- COLUMNA IZQUIERDA: LOGO + ANIMACIÓN OLA DE REPULSIÓN -->
+        <div class="pin-left-panel" id="pin-left-panel">
+          <canvas id="pin-canvas-bg" class="pin-canvas-bg"></canvas>
+          <div class="pin-left-content">
+            <img src="/LOGO.png" alt="Logo Cacao Facturador" class="pin-logo-hero" />
+            <h1 class="pin-left-title">Cacao Facturador</h1>
+            <p class="pin-left-subtitle">Facturador + Manager de Inventario</p>
+            <div class="pin-badge-tag">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Acceso Seguro Encriptado</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- COLUMNA DERECHA: FORMULARIO PIN -->
+        <div class="pin-right-panel">
+          <div class="pin-lock-badge">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+
+          <h2 id="pin-title">Bienvenido a Cacao Facturador</h2>
+          <p id="pin-subtitle">Crea un PIN de 4 dígitos para proteger tu información</p>
+          
+          <form id="form-pin" onsubmit="procesarPin(event)">
+            <div class="pin-input-group">
+              <input type="password" maxlength="1" class="pin-digit" id="p1" autofocus required />
+              <input type="password" maxlength="1" class="pin-digit" id="p2" required />
+              <input type="password" maxlength="1" class="pin-digit" id="p3" required />
+              <input type="password" maxlength="1" class="pin-digit" id="p4" required />
+            </div>
+
+            <button type="submit" class="btn" id="btn-pin-submit">Ingresar a la App</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANTALLA 1: DASHBOARD CON 4 CAJAS PRINCIPALES -->
+  <div id="view-dashboard" class="view-container">
+    <div class="dashboard-header">
+      <h1>Panel de Control</h1>
+      <p>Selecciona una opción para gestionar tu facturación e inventario</p>
+    </div>
+
+    <div class="dashboard-grid">
+      <!-- CAJA 1: FACTURADOR -->
+      <div class="dash-card" onclick="irASeccion('facturador')">
+        <div class="dash-icon-box">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+        </div>
+        <h3>Facturador</h3>
+        <p>Generar, firmar XAdES-BES y autorizar comprobantes electrónicas ante el SRI</p>
+      </div>
+
+      <!-- CAJA 2: INVENTARIO -->
+      <div class="dash-card" onclick="irASeccion('inventario')">
+        <div class="dash-icon-box">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        </div>
+        <h3>Inventario</h3>
+        <p>Administrar productos, precios, tarifas de IVA y stock en tiempo real en SQLite</p>
+      </div>
+
+      <!-- CAJA 3: HISTORIAL -->
+      <div class="dash-card" onclick="irASeccion('historial')">
+        <div class="dash-icon-box">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <h3>Historial</h3>
+        <p>Consultar facturas emitidas, claves de acceso y respuestas del SRI</p>
+      </div>
+
+      <!-- CAJA 4: CONFIGURACIÓN -->
+      <div class="dash-card" onclick="irASeccion('configuracion')">
+        <div class="dash-icon-box">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <h3>Configuración</h3>
+        <p>Configurar RUC del emisor, certificado digital .p12 y clave de acceso</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANTALLA 2: VISTA INTERNA CON SIDEBAR REDONDEADA EN CAJA -->
+  <div id="view-sections" class="view-container">
+    <div class="section-layout">
+      <!-- SIDEBAR REDONDEADA IZQUIERDA -->
+      <div class="sidebar-rounded">
+        <button type="button" class="sidebar-header-btn" onclick="irADashboard()">
+          <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> Inicio / Dashboard
+        </button>
+
+        <button type="button" class="sidebar-nav-btn" data-sec="facturador" onclick="cambiarSeccionInterna('facturador')">
+          <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg></span> Facturador
+        </button>
+
+        <button type="button" class="sidebar-nav-btn" data-sec="inventario" onclick="cambiarSeccionInterna('inventario')">
+          <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span> Inventario
+        </button>
+
+        <button type="button" class="sidebar-nav-btn" data-sec="historial" onclick="cambiarSeccionInterna('historial')">
+          <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> Historial
+        </button>
+
+        <button type="button" class="sidebar-nav-btn" data-sec="configuracion" onclick="cambiarSeccionInterna('configuracion')">
+          <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Configuración
+        </button>
+      </div>
+
+      <!-- CONTENIDO PRINCIPAL DERECHA -->
+      <div>
+        <!-- SECCIÓN FACTURADOR -->
+        <div id="sec-facturador" class="sec-content">
+          <div class="card">
+            <h2>Emitir Factura Electrónica</h2>
+            <form id="form-factura">
+              <div class="row">
+                <div class="form-group">
+                  <label>Secuencial (9 dígitos)</label>
+                  <input type="text" id="fac-secuencial" maxlength="9" value="000000001" required />
+                </div>
+                <div class="form-group">
+                  <label>Fecha Emisión (DD/MM/AAAA)</label>
+                  <input type="text" id="fac-fecha" required />
+                </div>
+              </div>
+
+              <h3 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin: 1rem 0 0.5rem 0;">Datos del Cliente</h3>
+              <div class="row">
+                <div class="form-group">
+                  <label>Tipo Identificación</label>
+                  <select id="cli-tipo-id">
+                    <option value="05">05 - Cédula</option>
+                    <option value="04">04 - RUC</option>
+                    <option value="06">06 - Pasaporte</option>
+                    <option value="07">07 - Consumidor Final</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Identificación</label>
+                  <input type="text" id="cli-id" value="1722222222" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Nombres / Razón Social Cliente</label>
+                <input type="text" id="cli-razon" value="JUAN PEREZ" required />
+              </div>
+              <div class="row">
+                <div class="form-group">
+                  <label>Email</label>
+                  <input type="email" id="cli-email" value="cliente@example.com" />
+                </div>
+                <div class="form-group">
+                  <label>Teléfono</label>
+                  <input type="text" id="cli-tel" value="0999999999" />
+                </div>
+              </div>
+
+              <!-- ÍTEMS -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+                <h3 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Ítems de la Factura</h3>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-item">+ Agregar Ítem</button>
+              </div>
+
+              <div class="table-container">
+                <table id="tabla-items">
+                  <thead>
+                    <tr>
+                      <th>Seleccionar Producto (SQLite)</th>
+                      <th>Descripción</th>
+                      <th style="width: 75px;">Cant.</th>
+                      <th style="width: 95px;">P.Unit ($)</th>
+                      <th style="width: 85px;">IVA</th>
+                      <th style="width: 40px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-items">
+                    <!-- Filas dinámicas -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- TOTALES -->
+              <div class="totales-box">
+                <div class="totales-row"><span>Subtotal IVA 15%:</span> <span id="tot-subtotal-15">$0.00</span></div>
+                <div class="totales-row"><span>Subtotal IVA 0%:</span> <span id="tot-subtotal-0">$0.00</span></div>
+                <div class="totales-row"><span>Monto IVA (15%):</span> <span id="tot-iva">$0.00</span></div>
+                <div class="totales-row total-final"><span>TOTAL FACTURA:</span> <span id="tot-final">$0.00</span></div>
+              </div>
+
+              <button type="submit" class="btn" style="margin-top: 1.5rem;" id="btn-emitir">
+                FIRMAR, EMITIR Y DESCONTAR INVENTARIO
+              </button>
+            </form>
+          </div>
+
+          <!-- CARD RESULTADO -->
+          <div class="card" id="card-resultado" style="display: none;">
+            <h2>Respuesta del SRI</h2>
+            <div style="margin-bottom: 1rem;">
+              <span>Estado: </span>
+              <span id="res-estado" class="status-badge">---</span>
+            </div>
+            <div class="form-group">
+              <label>Clave de Acceso (49 dígitos)</label>
+              <input type="text" id="res-clave" readonly style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" />
+            </div>
+            <div class="row">
+              <div class="form-group">
+                <label>N° Autorización</label>
+                <input type="text" id="res-num-aut" readonly />
+              </div>
+              <div class="form-group">
+                <label>Fecha Autorización</label>
+                <input type="text" id="res-fec-aut" readonly />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Mensajes del SRI</label>
+              <ul id="res-mensajes" style="font-size: 0.85rem; color: var(--danger-color); margin-left: 1.2rem;"></ul>
+            </div>
+            <details>
+              <summary style="cursor: pointer; color: var(--accent-color); font-size: 0.9rem; font-weight: 600;">Ver XML Firmado / Autorizado</summary>
+              <pre id="res-xml" style="margin-top: 0.75rem; max-height: 250px;"></pre>
+            </details>
+          </div>
+        </div>
+
+        <!-- SECCIÓN INVENTARIO -->
+        <div id="sec-inventario" class="sec-content" style="display: none;">
+          <div class="card">
+            <h2>
+              <span>Gestor de Inventario (SQLite)</span>
+              <button type="button" class="btn btn-sm" id="btn-nuevo-producto">+ Nuevo Producto</button>
+            </h2>
+            <div style="margin-bottom: 1.2rem;">
+              <input type="text" id="inv-buscar" placeholder="Buscar por código o descripción..." />
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Precio ($)</th>
+                    <th>Stock Actual</th>
+                    <th>IVA</th>
+                    <th style="width: 130px; text-align: center;">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-inventario"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN HISTORIAL -->
+        <div id="sec-historial" class="sec-content" style="display: none;">
+          <div class="card">
+            <h2>Historial de Facturas Emitidas (SQLite)</h2>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Secuencial</th>
+                    <th>Cliente</th>
+                    <th>Identificación</th>
+                    <th>Total ($)</th>
+                    <th>Estado SRI</th>
+                    <th>Clave Acceso</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-historial"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN CONFIGURACIÓN -->
+        <div id="sec-configuracion" class="sec-content" style="display: none;">
+          <div class="card">
+            <h2>Configuración Emisor</h2>
+            <form id="form-config">
+              <div class="form-group">
+                <label>RUC (13 dígitos)</label>
+                <input type="text" id="cfg-ruc" maxlength="13" required />
+              </div>
+              <div class="form-group">
+                <label>Razón Social</label>
+                <input type="text" id="cfg-razon" required />
+              </div>
+              <div class="form-group">
+                <label>Nombre Comercial</label>
+                <input type="text" id="cfg-nombre-comercial" />
+              </div>
+              <div class="form-group">
+                <label>Dirección Matriz</label>
+                <input type="text" id="cfg-dir-matriz" required />
+              </div>
+              <div class="form-group">
+                <label>Dirección Establecimiento</label>
+                <input type="text" id="cfg-dir-estab" required />
+              </div>
+              <div class="row">
+                <div class="form-group">
+                  <label>Establecimiento</label>
+                  <input type="text" id="cfg-estab" maxlength="3" value="001" required />
+                </div>
+                <div class="form-group">
+                  <label>Pto. Emisión</label>
+                  <input type="text" id="cfg-pto" maxlength="3" value="001" required />
+                </div>
+              </div>
+              <div class="row">
+                <div class="form-group">
+                  <label>Obligado Contab.</label>
+                  <select id="cfg-obligado">
+                    <option value="NO">NO</option>
+                    <option value="SI">SI</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Ambiente SRI</label>
+                  <select id="cfg-ambiente">
+                    <option value="1">1 - Pruebas</option>
+                    <option value="2">2 - Producción</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Régimen RIMPE</label>
+                <select id="cfg-rimpe">
+                  <option value="CONTRIBUYENTE REGIMEN RIMPE">CONTRIBUYENTE REGIMEN RIMPE</option>
+                  <option value="CONTRIBUYENTE NEGOCIO POPULAR - REGIMEN RIMPE">NEGOCIO POPULAR - REGIMEN RIMPE</option>
+                  <option value="">Ninguno</option>
+                </select>
+              </div>
+              <hr style="border-color: var(--border-color); margin: 1.2rem 0;" />
+              <div class="form-group">
+                <label>Firma Electrónica (.p12 / .pfx)</label>
+                <input type="file" id="cfg-p12-file" accept=".p12,.pfx" />
+                <span id="cfg-p12-status" style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-top: 0.3rem;">Sin firma subida</span>
+              </div>
+              <div class="form-group">
+                <label>Contraseña Firma .p12</label>
+                <input type="password" id="cfg-p12-pass" placeholder="••••••••" />
+              </div>
+              <button type="submit" class="btn btn-secondary">Guardar Configuración</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRODUCTO -->
+<div class="modal-overlay" id="modal-producto">
+  <div class="modal-box">
+    <h2 id="modal-titulo" style="font-size: 1.1rem; margin-bottom: 1rem; color: var(--text-main);">Nuevo Producto</h2>
+    <form id="form-producto">
+      <input type="hidden" id="prod-id" />
+      <div class="form-group">
+        <label>Código Principal</label>
+        <input type="text" id="prod-codigo" required placeholder="Ej: PRD-001" />
+      </div>
+      <div class="form-group">
+        <label>Descripción</label>
+        <input type="text" id="prod-desc" required placeholder="Nombre del producto o servicio" />
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Precio Unitario ($)</label>
+          <input type="number" id="prod-precio" step="0.01" min="0" required />
+        </div>
+        <div class="form-group">
+          <label>Stock Inicial</label>
+          <input type="number" id="prod-stock" step="0.1" min="0" required />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Porcentaje IVA</label>
+        <select id="prod-iva">
+          <option value="4">15% (Tarifa Actual)</option>
+          <option value="0">0% (Exento / Sin IVA)</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 0.8rem; margin-top: 1.5rem;">
+        <button type="submit" class="btn">Guardar Producto</button>
+        <button type="button" class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const API_BASE = (window.location.protocol.startsWith('http') && (window.location.port === '8080' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+    ? ''
+    : 'http://127.0.0.1:8080';
+
+  let items = [];
+  let listaProductos = [];
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    initPinInputs();
+    verificarPinConfigurado();
+
+    document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('btn-buscar-actualizaciones').addEventListener('click', buscarActualizaciones);
+    document.getElementById('btn-lock-app').addEventListener('click', bloquearApp);
+
+    document.getElementById('btn-add-item').addEventListener('click', () => {
+      items.push({ codigo: '', descripcion: '', cantidad: 1, precio: 0.00, descuento: 0, iva: '4', tarifa: 15.0 });
+      renderItems();
+    });
+
+    document.getElementById('form-config').addEventListener('submit', guardarConfig);
+    document.getElementById('cfg-p12-file').addEventListener('change', subirP12);
+    document.getElementById('form-factura').addEventListener('submit', emitirFactura);
+    document.getElementById('btn-nuevo-producto').addEventListener('click', () => abrirModal());
+    document.getElementById('form-producto').addEventListener('submit', guardarProducto);
+    document.getElementById('inv-buscar').addEventListener('input', filtrarInventario);
+    initPinCanvasAnimation();
+  });
+
+  /* ANIMACIÓN OLA DE REPULSIÓN EN CANVASES */
+  function initPinCanvasAnimation() {
+    const canvas = document.getElementById('pin-canvas-bg');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let width = 0, height = 0, dots = [], mouse = { x: -1000, y: -1000 }, time = 0;
+    const spacing = 26;
+
+    function resize() {
+      const parent = canvas.parentElement;
+      width = canvas.width = parent.clientWidth;
+      height = canvas.height = parent.clientHeight;
+      dots = [];
+      const cols = Math.ceil(width / spacing) + 1;
+      const rows = Math.ceil(height / spacing) + 1;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const baseX = c * spacing;
+          const baseY = r * spacing;
+          dots.push({ r, c, baseX, baseY, x: baseX, y: baseY, vx: 0, vy: 0, size: 2.2 });
+        }
+      }
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+
+    const parentEl = canvas.parentElement;
+    parentEl.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    });
+    parentEl.addEventListener('mouseleave', () => {
+      mouse.x = -1000;
+      mouse.y = -1000;
+    });
+
+    function animate() {
+      time += 0.025;
+      ctx.clearRect(0, 0, width, height);
+      const maxDist = 135;
+      const cols = Math.ceil(width / spacing) + 1;
+
+      for (let i = 0; i < dots.length; i++) {
+        const dot = dots[i];
+        const waveX = Math.sin(dot.baseY * 0.04 + time * 1.5) * 7;
+        const waveY = Math.cos(dot.baseX * 0.04 + time * 1.5) * 7;
+        let targetX = dot.baseX + waveX;
+        let targetY = dot.baseY + waveY;
+
+        const dx = dot.x - mouse.x;
+        const dy = dot.y - mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < maxDist && dist > 0) {
+          const force = Math.pow((maxDist - dist) / maxDist, 2);
+          const angle = Math.atan2(dy, dx);
+          const repelDist = force * 55;
+          targetX += Math.cos(angle) * repelDist;
+          targetY += Math.sin(angle) * repelDist;
+        }
+
+        dot.vx = (dot.vx + (targetX - dot.x) * 0.12) * 0.8;
+        dot.vy = (dot.vy + (targetY - dot.y) * 0.12) * 0.8;
+        dot.x += dot.vx;
+        dot.y += dot.vy;
+      }
+
+      ctx.lineWidth = 1;
+      for (let i = 0; i < dots.length; i++) {
+        const dot = dots[i];
+        if (dot.c + 1 < cols && i + 1 < dots.length) {
+          const rightDot = dots[i + 1];
+          if (rightDot.r === dot.r) {
+            const dLine = Math.hypot(dot.x - rightDot.x, dot.y - rightDot.y);
+            if (dLine < spacing * 1.6) {
+              const alpha = (1 - dLine / (spacing * 1.6)) * 0.15;
+              ctx.strokeStyle = `rgba(210, 125, 45, ${alpha})`;
+              ctx.beginPath();
+              ctx.moveTo(dot.x, dot.y);
+              ctx.lineTo(rightDot.x, rightDot.y);
+              ctx.stroke();
+            }
+          }
+        }
+        const bottomIdx = i + cols;
+        if (bottomIdx < dots.length) {
+          const bottomDot = dots[bottomIdx];
+          const dLine = Math.hypot(dot.x - bottomDot.x, dot.y - bottomDot.y);
+          if (dLine < spacing * 1.6) {
+            const alpha = (1 - dLine / (spacing * 1.6)) * 0.15;
+            ctx.strokeStyle = `rgba(210, 125, 45, ${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(dot.x, dot.y);
+            ctx.lineTo(bottomDot.x, bottomDot.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      for (let i = 0; i < dots.length; i++) {
+        const dot = dots[i];
+        const distFromBase = Math.hypot(dot.x - dot.baseX, dot.y - dot.baseY);
+        const intensity = Math.min(1, distFromBase / 30);
+        const alpha = 0.25 + intensity * 0.6;
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, dot.size + intensity * 1.2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${210 + Math.floor(intensity * 45)}, ${125 + Math.floor(intensity * 60)}, 45, ${alpha})`;
+        ctx.fill();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  }
+
+  /* MODO CLARO / OSCURO */
+  function initTheme() {
+    const savedTheme = localStorage.getItem('cacao-theme') || 'dark';
+    setTheme(savedTheme);
+  }
+  function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    setTheme(currentTheme === 'light' ? 'dark' : 'light');
+  }
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('cacao-theme', theme);
+    document.getElementById('theme-icon').innerHTML = theme === 'light'
+      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>'
+      : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
+    document.getElementById('theme-text').innerText = theme === 'light' ? 'Modo Claro' : 'Modo Oscuro';
+  }
+
+  /* BOTÓN BUSCAR ACTUALIZACIONES */
+  function buscarActualizaciones() {
+    alert('Buscando actualizaciones...\n\nTu aplicación Cacao Facturador v0.1.0 está actualizada a la versión más reciente.');
+  }
+
+  /* SISTEMA DE PIN Y PANTALLA DE BIENVENIDA */
+  function initPinInputs() {
+    const digits = [document.getElementById('p1'), document.getElementById('p2'), document.getElementById('p3'), document.getElementById('p4')];
+    digits.forEach((el, index) => {
+      el.addEventListener('input', (e) => {
+        if (e.target.value.length === 1 && index < 3) {
+          digits[index + 1].focus();
+        }
+      });
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !e.target.value && index > 0) {
+          digits[index - 1].focus();
+        }
+      });
+    });
+  }
+
+  function verificarPinConfigurado() {
+    const pinGuardado = localStorage.getItem('cacao_pin');
+    if (!pinGuardado) {
+      document.getElementById('pin-title').innerText = 'Bienvenido a Cacao Facturador';
+      document.getElementById('pin-subtitle').innerText = 'Crea un PIN de 4 dígitos para proteger tu información';
+      document.getElementById('btn-pin-submit').innerText = 'Crear PIN e Ingresar';
+    } else {
+      document.getElementById('pin-title').innerText = 'Aplicación Bloqueada';
+      document.getElementById('pin-subtitle').innerText = 'Ingresa tu PIN de 4 dígitos para continuar';
+      document.getElementById('btn-pin-submit').innerText = 'Desbloquear App';
+    }
+  }
+
+  function procesarPin(e) {
+    e.preventDefault();
+    const p1 = document.getElementById('p1').value;
+    const p2 = document.getElementById('p2').value;
+    const p3 = document.getElementById('p3').value;
+    const p4 = document.getElementById('p4').value;
+    const pinIngresado = `${p1}${p2}${p3}${p4}`;
+
+    if (pinIngresado.length !== 4) {
+      alert('Por favor ingresa los 4 dígitos del PIN.');
+      return;
+    }
+
+    const pinGuardado = localStorage.getItem('cacao_pin');
+
+    if (!pinGuardado) {
+      localStorage.setItem('cacao_pin', pinIngresado);
+      alert('PIN creado exitosamente.');
+      desbloquearPantallaPrincipal();
+    } else {
+      if (pinIngresado === pinGuardado) {
+        desbloquearPantallaPrincipal();
+      } else {
+        alert('PIN incorrecto. Inténtalo nuevamente.');
+        limpiarPinInputs();
+      }
+    }
+  }
+
+  function limpiarPinInputs() {
+    document.getElementById('p1').value = '';
+    document.getElementById('p2').value = '';
+    document.getElementById('p3').value = '';
+    document.getElementById('p4').value = '';
+    document.getElementById('p1').focus();
+  }
+
+  function desbloquearPantallaPrincipal() {
+    document.getElementById('view-pin').classList.remove('active');
+    document.getElementById('view-dashboard').classList.add('active');
+    document.getElementById('btn-lock-app').style.display = 'inline-flex';
+    cargarFechaActual();
+    cargarConfig();
+    cargarProductosSRI();
+  }
+
+  function bloquearApp() {
+    limpiarPinInputs();
+    document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-pin').classList.add('active');
+    document.getElementById('btn-lock-app').style.display = 'none';
+  }
+
+  /* NAVEGACIÓN DASHBOARD -> VISTA CON SIDEBAR REDONDEADA */
+  function irADashboard() {
+    document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-dashboard').classList.add('active');
+  }
+
+  function irASeccion(seccionId) {
+    document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-sections').classList.add('active');
+    cambiarSeccionInterna(seccionId);
+  }
+
+  function cambiarSeccionInterna(seccionId) {
+    // Activar botón de la sidebar
+    document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.sec === seccionId);
+    });
+
+    // Mostrar contenido principal
+    document.querySelectorAll('.sec-content').forEach(sec => sec.style.display = 'none');
+    const secTarget = document.getElementById(`sec-${seccionId}`);
+    if (secTarget) secTarget.style.display = 'block';
+
+    if (seccionId === 'inventario') cargarProductosSRI();
+    if (seccionId === 'historial') cargarHistorialFacturas();
+  }
+
+  function cargarFechaActual() {
+    const today = new Date();
+    document.getElementById('fac-fecha').value = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+  }
+
+  async function cargarConfig() {
+    try {
+      const res = await fetch(`${API_BASE}/api/config`);
+      if (!res.ok) return;
+      const cfg = await res.json();
+      document.getElementById('cfg-ruc').value = cfg.ruc || '';
+      document.getElementById('cfg-razon').value = cfg.razon_social || '';
+      document.getElementById('cfg-nombre-comercial').value = cfg.nombre_comercial || '';
+      document.getElementById('cfg-dir-matriz').value = cfg.dir_matriz || '';
+      document.getElementById('cfg-dir-estab').value = cfg.dir_establecimiento || '';
+      document.getElementById('cfg-estab').value = cfg.cod_establecimiento || '001';
+      document.getElementById('cfg-pto').value = cfg.pto_emision || '001';
+      document.getElementById('cfg-obligado').value = cfg.obligado_contabilidad || 'NO';
+      document.getElementById('cfg-ambiente').value = cfg.ambiente || '1';
+      document.getElementById('cfg-rimpe').value = cfg.regimen_rimpe || 'CONTRIBUYENTE REGIMEN RIMPE';
+      document.getElementById('cfg-p12-pass').value = cfg.p12_password || '';
+
+      if (cfg.p12_path) {
+        document.getElementById('cfg-p12-status').innerText = `Firma guardada: ${cfg.p12_path}`;
+        document.getElementById('cfg-p12-status').style.color = 'var(--success-color)';
+      }
+    } catch(e) { console.error('Error cargando config:', e); }
+  }
+
+  async function guardarConfig(e) {
+    e.preventDefault();
+    const cfg = {
+      ruc: document.getElementById('cfg-ruc').value,
+      razon_social: document.getElementById('cfg-razon').value,
+      nombre_comercial: document.getElementById('cfg-nombre-comercial').value,
+      dir_matriz: document.getElementById('cfg-dir-matriz').value,
+      dir_establecimiento: document.getElementById('cfg-dir-estab').value,
+      cod_establecimiento: document.getElementById('cfg-estab').value,
+      pto_emision: document.getElementById('cfg-pto').value,
+      obligado_contabilidad: document.getElementById('cfg-obligado').value,
+      ambiente: document.getElementById('cfg-ambiente').value,
+      regimen_rimpe: document.getElementById('cfg-rimpe').value,
+      p12_password: document.getElementById('cfg-p12-pass').value,
+      p12_path: document.getElementById('cfg-p12-status').innerText.includes('uploads_') ? document.getElementById('cfg-p12-status').innerText.replace('Firma guardada: ', '') : null
+    };
+
+    await fetch(`${API_BASE}/api/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
+    alert('Configuración guardada exitosamente');
+  }
+
+  async function subirP12() {
+    const input = document.getElementById('cfg-p12-file');
+    if (!input.files[0]) return;
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    const res = await fetch(`${API_BASE}/api/upload-p12`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.path) {
+      document.getElementById('cfg-p12-status').innerText = `Firma guardada: ${data.path}`;
+      document.getElementById('cfg-p12-status').style.color = 'var(--success-color)';
+    }
+  }
+
+  /* INVENTARIO */
+  async function cargarProductosSRI() {
+    try {
+      const res = await fetch(`${API_BASE}/api/productos`);
+      if (!res.ok) {
+        console.error('Error al obtener productos HTTP:', res.status);
+        return;
+      }
+      listaProductos = await res.json();
+      renderInventario(listaProductos);
+      
+      if (items.length === 0 && listaProductos.length > 0) {
+        items.push({
+          codigo: listaProductos[0].codigo,
+          descripcion: listaProductos[0].descripcion,
+          cantidad: 1,
+          precio: listaProductos[0].precio_unitario,
+          descuento: 0,
+          iva: listaProductos[0].codigo_iva,
+          tarifa: listaProductos[0].tarifa_iva
+        });
+        renderItems();
+      }
+    } catch(e) { console.error('Error al cargar productos desde la API:', e); }
+  }
+
+  function renderInventario(productos) {
+    const tbody = document.getElementById('tbody-inventario');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (productos.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No hay productos en inventario</td></tr>`;
+      return;
+    }
+    productos.forEach(p => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${p.codigo}</strong></td>
+        <td>${p.descripcion}</td>
+        <td>$${p.precio_unitario.toFixed(2)}</td>
+        <td><span class="status-badge ${p.stock > 10 ? 'status-AUTORIZADO' : 'status-DEVUELTA'}">${p.stock} unids</span></td>
+        <td>${p.codigo_iva === '4' ? '15%' : '0%'}</td>
+        <td style="text-align: center; display: flex; gap: 0.4rem; justify-content: center;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="editarProducto(${p.id}, event)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+          <button type="button" class="btn btn-danger btn-sm" onclick="borrarProducto(${p.id}, event)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function filtrarInventario() {
+    const query = document.getElementById('inv-buscar').value.toLowerCase();
+    const filtrados = listaProductos.filter(p => p.codigo.toLowerCase().includes(query) || p.descripcion.toLowerCase().includes(query));
+    renderInventario(filtrados);
+  }
+
+  function abrirModal(p = null) {
+    document.getElementById('modal-producto').classList.add('active');
+    if (p) {
+      document.getElementById('modal-titulo').innerText = 'Editar Producto';
+      document.getElementById('prod-id').value = p.id;
+      document.getElementById('prod-codigo').value = p.codigo;
+      document.getElementById('prod-desc').value = p.descripcion;
+      document.getElementById('prod-precio').value = p.precio_unitario;
+      document.getElementById('prod-stock').value = p.stock;
+      document.getElementById('prod-iva').value = p.codigo_iva;
+    } else {
+      document.getElementById('modal-titulo').innerText = 'Nuevo Producto';
+      document.getElementById('form-producto').reset();
+      document.getElementById('prod-id').value = '';
+    }
+  }
+
+  function cerrarModal() {
+    document.getElementById('modal-producto').classList.remove('active');
+  }
+
+  async function guardarProducto(e) {
+    e.preventDefault();
+    const id = document.getElementById('prod-id').value;
+    const prod = {
+      codigo: document.getElementById('prod-codigo').value.trim(),
+      codigo_auxiliar: null,
+      descripcion: document.getElementById('prod-desc').value.trim(),
+      precio_unitario: parseFloat(document.getElementById('prod-precio').value) || 0,
+      stock: parseFloat(document.getElementById('prod-stock').value) || 0,
+      codigo_iva: document.getElementById('prod-iva').value,
+      tarifa_iva: document.getElementById('prod-iva').value === '4' ? 15.0 : 0.0
+    };
+
+    if (!prod.codigo || !prod.descripcion) {
+      alert('Por favor completa el código y la descripción del producto.');
+      return;
+    }
+
+    const url = id ? `${API_BASE}/api/productos/${id}` : `${API_BASE}/api/productos`;
+    const method = id ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prod)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        alert('No se pudo guardar el producto:\n' + errText);
+        return;
+      }
+
+      cerrarModal();
+      await cargarProductosSRI();
+      alert('Producto guardado exitosamente en el inventario.');
+    } catch(err) {
+      alert('Error de conexión al guardar producto: ' + err);
+    }
+  }
+
+  function editarProducto(id, event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const p = listaProductos.find(x => x.id === id);
+    if (p) abrirModal(p);
+  }
+
+  async function borrarProducto(id, event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!confirm('¿Seguro deseas eliminar este producto del inventario?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/productos/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errText = await res.text();
+        alert('No se pudo eliminar el producto:\n' + errText);
+        return;
+      }
+      await cargarProductosSRI();
+    } catch(err) {
+      alert('Error de conexión al eliminar producto: ' + err);
+    }
+  }
+
+  /* FACTURADOR */
+  function renderItems() {
+    const tbody = document.getElementById('tbody-items');
+    tbody.innerHTML = '';
+
+    items.forEach((item, index) => {
+      const tr = document.createElement('tr');
+      let optionsHTML = `<option value="">-- Seleccionar Producto --</option>`;
+      listaProductos.forEach(p => {
+        const sel = p.codigo === item.codigo ? 'selected' : '';
+        optionsHTML += `<option value="${p.codigo}" ${sel}>${p.codigo} - ${p.descripcion} ($${p.precio_unitario.toFixed(2)})</option>`;
+      });
+
+      tr.innerHTML = `
+        <td>
+          <select onchange="seleccionarProductoInventario(${index}, this.value)">
+            ${optionsHTML}
+          </select>
+        </td>
+        <td><input type="text" value="${item.descripcion}" onchange="updateItem(${index}, 'descripcion', this.value)"></td>
+        <td><input type="number" value="${item.cantidad}" step="1" min="1" onchange="updateItem(${index}, 'cantidad', parseFloat(this.value))"></td>
+        <td><input type="number" value="${item.precio}" step="0.01" min="0" onchange="updateItem(${index}, 'precio', parseFloat(this.value))"></td>
+        <td>
+          <select onchange="updateItem(${index}, 'iva', this.value)">
+            <option value="4" ${item.iva === '4' ? 'selected' : ''}>15%</option>
+            <option value="0" ${item.iva === '0' ? 'selected' : ''}>0%</option>
+          </select>
+        </td>
+        <td><button type="button" class="btn btn-danger btn-sm" onclick="removeItem(${index})">✕</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    calcularTotales();
+  }
+
+  function seleccionarProductoInventario(index, codigo) {
+    const prod = listaProductos.find(p => p.codigo === codigo);
+    if (prod) {
+      items[index].codigo = prod.codigo;
+      items[index].descripcion = prod.descripcion;
+      items[index].precio = prod.precio_unitario;
+      items[index].iva = prod.codigo_iva;
+      items[index].tarifa = prod.tarifa_iva;
+      renderItems();
+    }
+  }
+
+  function updateItem(index, key, val) {
+    items[index][key] = val;
+    if (key === 'iva') items[index].tarifa = val === '4' ? 15.0 : 0.0;
+    calcularTotales();
+  }
+
+  function removeItem(index) {
+    items.splice(index, 1);
+    renderItems();
+  }
+
+  function calcularTotales() {
+    let subtotal15 = 0;
+    let subtotal0 = 0;
+
+    items.forEach(i => {
+      const sub = (i.cantidad * i.precio) - (i.descuento || 0);
+      if (i.iva === '4') subtotal15 += sub;
+      else subtotal0 += sub;
+    });
+
+    const iva15 = subtotal15 * 0.15;
+    const total = subtotal15 + subtotal0 + iva15;
+
+    document.getElementById('tot-subtotal-15').innerText = `$${subtotal15.toFixed(2)}`;
+    document.getElementById('tot-subtotal-0').innerText = `$${subtotal0.toFixed(2)}`;
+    document.getElementById('tot-iva').innerText = `$${iva15.toFixed(2)}`;
+    document.getElementById('tot-final').innerText = `$${total.toFixed(2)}`;
+  }
+
+  async function emitirFactura(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-emitir');
+    btn.disabled = true;
+    btn.innerText = 'Firmando y enviando al SRI...';
+
+    const payload = {
+      factura: {
+        secuencial: document.getElementById('fac-secuencial').value,
+        fecha_emision: document.getElementById('fac-fecha').value,
+        cliente: {
+          tipo_identificacion: document.getElementById('cli-tipo-id').value,
+          identificacion: document.getElementById('cli-id').value,
+          razon_social: document.getElementById('cli-razon').value,
+          direccion: 'Quito, Ecuador',
+          email: document.getElementById('cli-email').value,
+          telefono: document.getElementById('cli-tel').value
+        },
+        detalles: items.map(i => ({
+          codigo_principal: i.codigo || 'PRD-001',
+          descripcion: i.descripcion,
+          cantidad: parseFloat(i.cantidad),
+          precio_unitario: parseFloat(i.precio),
+          descuento: 0.0,
+          codigo_porcentaje_iva: i.iva,
+          tarifa_iva: i.iva === '4' ? 15.0 : 0.0
+        })),
+        formas_pago: [{
+          forma_pago: '01',
+          total: parseFloat(document.getElementById('tot-final').innerText.replace('$', ''))
+        }],
+        propina: 0.0
+      },
+      password_p12: document.getElementById('cfg-p12-pass').value
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/api/facturar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      document.getElementById('card-resultado').style.display = 'block';
+      const badge = document.getElementById('res-estado');
+      badge.innerText = data.estado;
+      badge.className = `status-badge status-${data.estado.replace(' ', '_')}`;
+
+      document.getElementById('res-clave').value = data.clave_acceso || '';
+      document.getElementById('res-num-aut').value = data.numero_autorizacion || 'N/A';
+      document.getElementById('res-fec-aut').value = data.fecha_autorizacion || 'N/A';
+
+      const ul = document.getElementById('res-mensajes');
+      ul.innerHTML = '';
+      if (data.mensajes && data.mensajes.length > 0) {
+        data.mensajes.forEach(m => {
+          const li = document.createElement('li');
+          li.innerText = m;
+          ul.appendChild(li);
+        });
+      } else {
+        ul.innerHTML = '<li style="color:var(--success-color)">Sin errores reportados</li>';
+      }
+
+      document.getElementById('res-xml').innerText = data.xml_autorizado || data.xml_firmado || '';
+      cargarProductosSRI();
+    } catch(err) {
+      alert('Error emitiendo factura: ' + err);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = 'FIRMAR, EMITIR Y DESCONTAR INVENTARIO';
+    }
+  }
+
+  /* HISTORIAL FACTURAS */
+  async function cargarHistorialFacturas() {
+    try {
+      const res = await fetch(`${API_BASE}/api/facturas`);
+      if (!res.ok) return;
+      const facturas = await res.json();
+      const tbody = document.getElementById('tbody-historial');
+      tbody.innerHTML = '';
+
+      if (facturas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No se han emitido facturas aún</td></tr>`;
+        return;
+      }
+
+      facturas.forEach(f => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${f.fecha_emision}</td>
+          <td><strong>${f.secuencial}</strong></td>
+          <td>${f.cliente_razon}</td>
+          <td>${f.cliente_identificacion}</td>
+          <td>$${f.importe_total.toFixed(2)}</td>
+          <td><span class="status-badge status-${f.estado.replace(' ', '_')}">${f.estado}</span></td>
+          <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">${f.clave_acceso}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch(e) { console.error('Error cargando historial de facturas:', e); }
+  }
+</script>
+
+</body>
+</html>
