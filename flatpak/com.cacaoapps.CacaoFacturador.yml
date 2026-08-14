@@ -5,15 +5,11 @@ sdk: org.freedesktop.Sdk
 command: cacao-facturador-ec
 
 finish-args:
-  # Conexión a red para consumir los WebServices del SRI Ecuador
   - --share=network
-  # Gráficos X11 y Wayland
   - --socket=x11
   - --socket=wayland
   - --device=dri
-  # Notificaciones del sistema
   - --talk-name=org.freedesktop.Notifications
-  # Sistema de archivos local para base de datos SQLite y certificados .p12
   - --filesystem=home
 
 modules:
@@ -24,4 +20,5 @@ modules:
     sources:
       - type: file
         url: https://github.com/Larevalot/cacao-facturador-ec/releases/download/v1.0.0/cacaofacturador-ec_1.0.0_amd64.AppImage
+        sha256: 0019dfc4b32d63c1392aa264aed2253c1e0c2fb09216f8e2cc269bbfb8bb49b5
         dest-filename: cacao-facturador-ec
