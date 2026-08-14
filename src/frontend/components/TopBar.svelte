@@ -13,7 +13,7 @@
   }
 
   function buscarActualizaciones() {
-    toastStore.success('Tu aplicación Cacao Facturador v0.1.0 está actualizada.', 'Actualizaciones');
+    toastStore.success('Tu aplicación Cacao Facturador v1.0.0 está actualizada.', 'Actualizaciones');
   }
 </script>
 
