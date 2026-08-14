@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 //! Facturador Electrónico SRI Ecuador e Inventario (Rust + SQLite + SQLx + Tauri v2)
 //!
 //! Soporta modo Servidor Web (Axum), modo CLI por Consola y Aplicación de Escritorio Nativa (Tauri v2).
