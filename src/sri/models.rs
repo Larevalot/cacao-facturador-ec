@@ -80,10 +80,12 @@ impl DetalleFactura {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormaPago {
-    pub forma_pago: String, // "01" Sin utilización del sistema financiero, "19" Tarjeta de crédito, "20" Otros
+    pub forma_pago: String, // "01" Sin utilización del sistema financiero, "19" Tarjeta de crédito, etc.
     pub total: f64,
+    #[serde(default)]
     pub plazo: Option<u32>,
-    pub unidad_tiempo: Option<String>, // "dias", "meses"
+    #[serde(default)]
+    pub unidad_tiempo: Option<String>, // "dias", "meses", "anios"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

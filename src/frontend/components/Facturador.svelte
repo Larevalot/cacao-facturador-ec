@@ -3,6 +3,23 @@
   import { toastStore } from '../lib/toast.svelte.js';
   import Icon from './Icon.svelte';
 
+  const FORMAS_PAGO_SRI = [
+    { codigo: '01', descripcion: 'SIN UTILIZACION DEL SISTEMA FINANCIERO' },
+    { codigo: '15', descripcion: 'COMPENSACIÓN DE DEUDAS' },
+    { codigo: '16', descripcion: 'TARJETA DE DÉBITO' },
+    { codigo: '17', descripcion: 'DINERO ELECTRÓNICO' },
+    { codigo: '18', descripcion: 'TARJETA PREPAGO' },
+    { codigo: '19', descripcion: 'TARJETA DE CRÉDITO' },
+    { codigo: '20', descripcion: 'OTROS CON UTILIZACION DEL SISTEMA FINANCIERO' },
+    { codigo: '21', descripcion: 'ENDOSO DE TÍTULOS' }
+  ];
+
+  const UNIDADES_TIEMPO = [
+    { codigo: 'dias', label: 'Días' },
+    { codigo: 'meses', label: 'Meses' },
+    { codigo: 'anios', label: 'Años' }
+  ];
+
   let secuencial = $state('000000001');
   let fechaEmision = $state('');
   let tipoId = $state('05');
@@ -17,6 +34,16 @@
   let items = $state([]);
   let isEmitiendo = $state(false);
   let respuestaSRI = $state(null);
+
+  // Formas de pago dinámicas
+  let formasPago = $state([
+    {
+      forma_pago: '01',
+      total: 0.00,
+      plazo: null,
+      unidad_tiempo: 'dias'
+    }
+  ]);
 
   // Fecha actual
   const today = new Date();
@@ -114,6 +141,22 @@
   let montoIva = $derived(subtotal15 * 0.15);
   let totalFactura = $derived(subtotal15 + subtotal0 + montoIva);
 
+  // Cálculos reactivos de formas de pago
+  let totalPagos = $derived(
+    formasPago.reduce((acc, p) => acc + (Number(p.total) || 0), 0)
+  );
+
+  let diferenciaPagos = $derived(
+    Number((totalFactura - totalPagos).toFixed(2))
+  );
+
+  // Auto-ajustar la forma de pago si solo hay una
+  $effect(() => {
+    if (formasPago.length === 1) {
+      formasPago[0].total = Number(totalFactura.toFixed(2));
+    }
+  });
+
   function addItem() {
     items = [...items, { codigo: '', descripcion: '', cantidad: 1, precio: 0.00, descuento: 0, iva: '4', tarifa: 15.0 }];
   }
@@ -133,10 +176,52 @@
     }
   }
 
+  function addFormaPago() {
+    const restante = Math.max(0, Number((totalFactura - totalPagos).toFixed(2)));
+    formasPago = [
+      ...formasPago,
+      {
+        forma_pago: '01',
+        total: restante,
+        plazo: null,
+        unidad_tiempo: 'dias'
+      }
+    ];
+  }
+
+  function removeFormaPago(index) {
+    if (formasPago.length > 1) {
+      formasPago = formasPago.filter((_, idx) => idx !== index);
+    }
+  }
+
+  function ajustarAlTotal() {
+    if (formasPago.length === 1) {
+      formasPago[0].total = Number(totalFactura.toFixed(2));
+    } else if (formasPago.length > 1) {
+      const otros = formasPago.slice(0, -1).reduce((acc, p) => acc + (Number(p.total) || 0), 0);
+      const restante = Math.max(0, Number((totalFactura - otros).toFixed(2)));
+      formasPago[formasPago.length - 1].total = restante;
+    }
+  }
+
   async function handleEmitir(e) {
     e.preventDefault();
     if (items.length === 0) {
       toastStore.warning('Debes agregar al menos un ítem a la factura.', 'Factura Vacía');
+      return;
+    }
+
+    if (formasPago.length === 0) {
+      toastStore.warning('Debes agregar al menos una forma de pago.', 'Forma de Pago');
+      return;
+    }
+
+    if (Math.abs(diferenciaPagos) >= 0.01) {
+      toastStore.warning(
+        `La suma de las formas de pago ($${totalPagos.toFixed(2)}) debe ser igual al total de la factura ($${totalFactura.toFixed(2)}).`,
+        'Descuadre en Pagos'
+      );
       return;
     }
 
@@ -179,10 +264,12 @@
           codigo_porcentaje_iva: i.iva,
           tarifa_iva: i.iva === '4' ? 15.0 : 0.0
         })),
-        formas_pago: [{
-          forma_pago: '01',
-          total: Number(totalFactura.toFixed(2))
-        }],
+        formas_pago: formasPago.map(p => ({
+          forma_pago: p.forma_pago,
+          total: Number(Number(p.total).toFixed(2)),
+          plazo: p.plazo && Number(p.plazo) > 0 ? Math.round(Number(p.plazo)) : null,
+          unidad_tiempo: p.plazo && Number(p.plazo) > 0 ? p.unidad_tiempo : null
+        })),
         propina: 0.0
       },
       password_p12: passwordP12 && passwordP12.trim().length > 0 ? passwordP12.trim() : null
@@ -340,6 +427,110 @@
       <div class="totales-row"><span>Subtotal IVA 0%:</span> <span>${subtotal0.toFixed(2)}</span></div>
       <div class="totales-row"><span>Monto IVA (15%):</span> <span>${montoIva.toFixed(2)}</span></div>
       <div class="totales-row total-final"><span>TOTAL FACTURA:</span> <span>${totalFactura.toFixed(2)}</span></div>
+    </div>
+
+    <!-- FORMAS DE PAGO (SRI) -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+      <h3 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
+        💳 Formas de Pago (SRI)
+      </h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick={addFormaPago}>
+        <Icon name="plus" size="1em" /> Agregar Forma de Pago
+      </button>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Forma de Pago*</th>
+            <th style="width: 120px;">Valor ($)*</th>
+            <th style="width: 95px;">Plazo</th>
+            <th style="width: 105px;">Tiempo</th>
+            <th style="width: 40px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each formasPago as pago, index}
+            <tr>
+              <td>
+                <select bind:value={pago.forma_pago}>
+                  {#each FORMAS_PAGO_SRI as fp}
+                    <option value={fp.codigo}>{fp.codigo} - {fp.descripcion}</option>
+                  {/each}
+                </select>
+              </td>
+              <td>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  bind:value={pago.total}
+                  required
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="Ej: 30"
+                  bind:value={pago.plazo}
+                />
+              </td>
+              <td>
+                <select bind:value={pago.unidad_tiempo}>
+                  {#each UNIDADES_TIEMPO as ut}
+                    <option value={ut.codigo}>{ut.label}</option>
+                  {/each}
+                </select>
+              </td>
+              <td>
+                {#if formasPago.length > 1}
+                  <button
+                    type="button"
+                    class="btn btn-danger btn-sm"
+                    onclick={() => removeFormaPago(index)}
+                    aria-label="Eliminar forma de pago"
+                  >
+                    <Icon name="x" size="1em" />
+                  </button>
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- BALANCE / CUADRE DE FORMAS DE PAGO -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem; padding: 0.5rem 0.8rem; background: var(--bg-input); border-radius: var(--radius-input); border: 1px solid var(--border-color); font-size: 0.82rem;">
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span><strong>Total Pagos:</strong> ${totalPagos.toFixed(2)}</span>
+        <span>|</span>
+        <span><strong>Total Factura:</strong> ${totalFactura.toFixed(2)}</span>
+      </div>
+      <div>
+        {#if Math.abs(diferenciaPagos) < 0.01}
+          <span style="color: var(--success-color); font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+            <Icon name="check" size="0.95em" /> Monto Cuadrado
+          </span>
+        {:else}
+          <div style="display: inline-flex; align-items: center; gap: 0.5rem;">
+            <span style="color: var(--danger-color); font-weight: 600;">
+              Diferencia: ${Math.abs(diferenciaPagos).toFixed(2)} ({diferenciaPagos > 0 ? 'Falta asignar' : 'Excedido'})
+            </span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              style="padding: 0.2rem 0.5rem; font-size: 0.75rem;"
+              onclick={ajustarAlTotal}
+            >
+              ⚡ Ajustar al Total
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
 
     <div class="form-group" style="margin-top: 1.2rem;">

@@ -133,10 +133,19 @@ pub fn construir_xml_factura(
             xml.push_str(&format!("        <formaPago>{}</formaPago>\n", p.forma_pago));
             xml.push_str(&format!("        <total>{:.2}</total>\n", p.total));
             if let Some(plazo) = p.plazo {
-                xml.push_str(&format!("        <plazo>{}</plazo>\n", plazo));
-            }
-            if let Some(ut) = &p.unidad_tiempo {
-                xml.push_str(&format!("        <unidadTiempo>{}</unidadTiempo>\n", ut));
+                if plazo > 0 {
+                    xml.push_str(&format!("        <plazo>{}</plazo>\n", plazo));
+                    if let Some(ut) = &p.unidad_tiempo {
+                        let trimmed = ut.trim();
+                        if !trimmed.is_empty() && trimmed != "none" {
+                            xml.push_str(&format!("        <unidadTiempo>{}</unidadTiempo>\n", trimmed));
+                        } else {
+                            xml.push_str("        <unidadTiempo>dias</unidadTiempo>\n");
+                        }
+                    } else {
+                        xml.push_str("        <unidadTiempo>dias</unidadTiempo>\n");
+                    }
+                }
             }
             xml.push_str("      </pago>\n");
         }
@@ -173,7 +182,7 @@ pub fn construir_xml_factura(
     }
     xml.push_str("  </detalles>\n");
 
-    // 4. infoAdicional (opcional, ej: email o teléfono)
+    // 4. infoAdicional (opcional, ej: email, teléfono, plazo de pago)
     let mut campos_adicionales = Vec::new();
     if let Some(email) = &request.cliente.email {
         let e = email.trim();
@@ -185,6 +194,35 @@ pub fn construir_xml_factura(
         let t = tel.trim();
         if !t.is_empty() {
             campos_adicionales.push(("Telefono", escape_xml(t)));
+        }
+    }
+
+    // Agregar plazo y unidad de tiempo en infoAdicional para visualización en RIDE PDF
+    for p in &request.formas_pago {
+        if let Some(plazo) = p.plazo {
+            if plazo > 0 {
+                let ut_label = match p.unidad_tiempo.as_deref().unwrap_or("dias") {
+                    "dias" | "días" => "Días",
+                    "meses" => "Meses",
+                    "anios" | "años" => "Años",
+                    other => other,
+                };
+                let nombre_fp = match p.forma_pago.as_str() {
+                    "01" => "Sin utilización del sistema financiero",
+                    "15" => "Compensación de deudas",
+                    "16" => "Tarjeta de débito",
+                    "17" => "Dinero electrónico",
+                    "18" => "Tarjeta prepago",
+                    "19" => "Tarjeta de crédito",
+                    "20" => "Otros con utilización del sistema financiero",
+                    "21" => "Endoso de títulos",
+                    _ => "Pago",
+                };
+                campos_adicionales.push((
+                    "Plazo de Pago",
+                    escape_xml(&format!("{}: {} {} (${:.2})", nombre_fp, plazo, ut_label, p.total)),
+                ));
+            }
         }
     }
 
