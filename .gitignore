@@ -1,11 +1,7 @@
 # Rust / Cargo build outputs
 /target
-
-# Node / Vite build outputs
 node_modules/
 dist/
-.svelte-kit/
-.vite/
 
 # SQLite databases & local data
 *.db
@@ -16,7 +12,7 @@ dist/
 cacao_facturador.db
 data/
 
-# Certificados de Firma Electrónica (.p12, .pfx, .pem, .key) y datos de prueba
+# Certificados de Firma Electrónica (.p12, .pfx, .pem, .key) y datos de configuración
 *.p12
 *.pfx
 *.pem
@@ -24,8 +20,9 @@ data/
 uploads_*
 config.json
 
-# XMLs de prueba generados
+# Comprobantes temporales y pruebas
 factura_*.xml
+ride_*.pdf
 test_*.rs
 
 # Archivos de entorno y temporales

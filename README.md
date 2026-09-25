@@ -1,83 +1,84 @@
 # 🍫 Cacao Facturador SRI & Gestor de Inventario 🇪🇨
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-amber.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.0-chocolate.svg)](https://github.com/cacaoscript/cacaofacturador-ec/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-chocolate.svg)](https://github.com/Larevalot/cacao-facturador-ec/releases)
 [![Rust](https://img.shields.io/badge/Rust-2024-orange.svg)](https://www.rust-lang.org/)
-[![Tauri](https://img.shields.io/badge/Tauri-v2-blue.svg)](https://v2.tauri.app/)
-[![Svelte](https://img.shields.io/badge/Svelte-v5-red.svg)](https://svelte.dev/)
+[![GUI](https://img.shields.io/badge/GUI-Iced-blue.svg)](https://iced.rs/)
+[![Database](https://img.shields.io/badge/Database-SQLite-lightgrey.svg)](https://www.sqlite.org/)
 
-Sistema **Open Source** de **Facturación Electrónica para el SRI de Ecuador** y **Gestión de Inventario & Servicios**, construido con **Rust + SQLite (SQLx) + Tauri v2 + Svelte 5**.
+Sistema **Open Source** de **Facturación Electrónica para el SRI de Ecuador** y **Gestión de Inventario & Servicios**, construido como una aplicación de escritorio nativa y ligera en **Rust**, **Iced GUI**, **SQLite (SQLx)** y **printpdf**.
 
-Desarrollado por [cacaoscript.com](https://cacaoscript.com) para ser **100% gratuito, privado y libre**.
+Desarrollado por [cacaoscript.com](https://cacaoscript.com) para ser **100% gratuito, privado, sin dependencias web pesadas y libre**.
 
 ---
 
 ## ⚡ Características Principales
 
-- **Cumplimiento SRI Ecuador (Esquema Offline v2.1/v2.34)**:
-  - Generación de estructura XML oficial.
+- **Cumplimiento Normativo SRI Ecuador (Esquema Offline v2.1/v2.34)**:
+  - Generación de estructura XML oficial de factura electrónica.
   - Firma Electrónica nativa en formato **XAdES-BES** (archivos `.p12` / `.pfx`).
   - Validación de Módulo 11 para la Clave de Acceso (49 dígitos).
-  - Envío y recepción asíncrona ante los WebServices del SRI (Pruebas y Producción).
-  - Polleo dinámico para respuestas `EN PROCESO` / `RECIBIDA` / `AUTORIZADO`.
-- **Soporte Completo para Consumidor Final**:
-  - Autocompletado automático con datos oficiales del SRI (`07`, `9999999999999`, `CONSUMIDOR FINAL`).
-  - Verificación preventiva del límite legal de $50.00 USD.
-- **Gestión de Productos y Servicios**:
-  - Distinción entre **📦 Productos** (con control de stock) y **🛠️ Servicios** (sin stock).
-  - Cálculo bi-direccional en tiempo real entre **Precio Unitario (Sin IVA)** y **Precio Final (Con IVA)** a 2 decimales exactos.
-  - Tarifas de IVA soportadas (15% y 0%).
-- **Optimizado para Equipos de Bajos Recursos**:
-  - Diseñado para máxima velocidad sin consumo excesivo de CPU/GPU en máquinas de punto de venta (POS) o PCs antiguas.
-  - Interfaz de usuario limpia, reactiva e instantánea.
-- **Privacidad Local First**:
-  - Todos tus productos, clientes, historial de facturas y certificados permanecen en tu computadora alojados en una base de datos local SQLite (`~/.cacaofacturador/cacao_facturador.db`).
+  - Envío y recepción asíncrona ante los WebServices del SRI (Ambientes de Pruebas y Producción).
+  - Polleo dinámico para respuestas `RECIBIDA`, `EN PROCESO`, `AUTORIZADO` y `RECHAZADO`.
+- **Plantillas PDF RIDE Profesionales**:
+  - Tres modelos de comprobante: **Clásica (Oficial SRI)**, **Moderna (Cacao)** y **Compacta (Ahorro Tinta)**.
+  - Soporte de subida y escalado proporcional de logotipo corporativo (PNG / JPG).
+  - Código de barras Code 128 nítido de la clave de acceso.
+  - Exportación individual o conjunta de archivo `.pdf` y `.xml` firmado.
+- **Gestión de Inventario y Catálogo**:
+  - Distinción entre **📦 Productos** (con control de existencias) y **🛠️ Servicios** (sin stock).
+  - Cálculo bidireccional en tiempo real entre Precio Unitario (sin impuestos) y Total (con IVA).
+  - Tarifas de IVA vigentes (15% y 0%).
+- **Clientes y Facturación Rápida**:
+  - Búsqueda y autocompletado automático de clientes frecuentes por RUC o Cédula.
+  - Soporte nativo para Consumidor Final con verificación preventiva del límite legal ($50.00 USD).
+- **Interfaz Nativa y Seguridad**:
+  - Construida con **Iced GUI**: interfaz fluida, bajo consumo de memoria RAM y arranque instantáneo (sin Chromium ni WebViews).
+  - Bloqueo y protección mediante PIN de 4 dígitos (con teclado táctil y teclado físico).
+  - Notificaciones emergentes con descarte automático tras 6 segundos.
+- **Privacidad Local-First**:
+  - Todos los certificados, productos, clientes y facturas permanecen exclusivamente en tu computadora dentro de SQLite local (`~/.cacaofacturador/cacao_facturador.db`).
 
 ---
 
-## 🚀 Requisitos de Desarrollo
+## 🚀 Requisitos de Sistema
 
-- **Node.js**: `>= 20.0.0`
-- **pnpm**: `>= 10.0.0`
-- **Rust**: `>= 1.80.0` (Edición 2024)
-- **OpenSSL 3.0** (librerías de desarrollo en Linux/macOS/Windows)
+- **Rust**: `>= 1.85.0` (Edición 2024)
+- **OpenSSL 3.0** (librerías de desarrollo en Linux)
+
+### En Linux (Ubuntu / Debian):
+```bash
+sudo apt-get update
+sudo apt-get install -y libssl-dev pkg-config
+```
 
 ---
 
-## 🛠️ Comandos de Instalación y Ejecución
+## 🛠️ Comandos de Desarrollo
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/cacaoscript/cacaofacturador-ec.git
-cd cacaofacturador-ec
+git clone https://github.com/Larevalot/cacao-facturador-ec.git
+cd cacao-facturador-ec
 
-# 2. Instalar dependencias del frontend
-pnpm install
+# 2. Ejecutar la aplicación en modo desarrollo
+cargo run
 
-# 3. Ejecutar en modo Desarrollo Escritorio (Tauri v2)
-pnpm desktop
-
-# 4. Compilar assets del frontend
-pnpm build:ui
-
-# 5. Ejecutar Pruebas Unitarias del Backend (Rust)
-pnpm test
+# 3. Ejecutar la suite completa de pruebas automatizadas
+cargo test
 ```
 
 ---
 
 ## 📦 Compilación para Distribución
 
-Para generar los ejecutables nativos redistribuibles:
+Para generar el ejecutable binario nativo optimizado para tu sistema operativo:
 
 ```bash
-# Compilar paquete nativo para tu sistema operativo
-pnpm desktop:build
+cargo build --release
 ```
 
-- **Windows**: Genera instalador `.exe` (NSIS) y `.msi` en `src-tauri/target/release/bundle/`.
-- **Linux**: Genera paquetes `.AppImage`, `.deb` y `.tar.gz`.
-- **macOS**: Genera instalador `.dmg` y `.app`.
+El binario compilado se ubicará en `target/release/cacaofacturador-ec` (en Linux) o `target/release/cacaofacturador-ec.exe` (en Windows).
 
 ---
 
@@ -93,5 +94,4 @@ MIT License - Copyright (c) 2026 CacaoScript / Cacao Apps
 
 ## 🌐 Enlaces Oficiales
 
-- **Web Oficial de Descargas**: [apps.cacaoscript.com](https://apps.cacaoscript.com)
-- **Sitio Web Principal**: [cacaoscript.com](https://cacaoscript.com)
+- **Web Oficial**: [cacaoscript.com](https://cacaoscript.com)
