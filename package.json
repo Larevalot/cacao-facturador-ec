@@ -1,15 +1,14 @@
 {
   "name": "cacaofacturador-ec",
   "version": "1.0.0",
-  "description": "Facturador Electrónico SRI Ecuador en Rust y Tauri v2",
+  "description": "Facturador Electrónico SRI Ecuador e Inventario en Rust e Iced GUI",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build:ui": "vite build",
-    "serve": "pnpm build:ui && cargo run -- --serve",
-    "desktop": "pnpm build:ui && GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 tauri dev",
-    "desktop:build": "pnpm build:ui && GDK_BACKEND=x11 tauri build",
-    "build": "pnpm build:ui && cargo build --release",
+    "dev": "cargo run",
+    "desktop": "cargo run",
+    "desktop:release": "cargo run --release",
+    "serve": "cargo run -- --serve",
+    "build": "cargo build --release",
     "test": "cargo test",
     "cli": "cargo run -- --cli"
   },

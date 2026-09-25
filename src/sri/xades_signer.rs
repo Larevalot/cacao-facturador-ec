@@ -14,33 +14,27 @@ use std::fs;
 use std::process::Command;
 use uuid::Uuid;
 
-pub fn firmar_xml(
-    p12_bytes: &[u8],
-    password: &str,
-    xml_content: &str,
-) -> Result<String, String> {
+pub fn firmar_xml(p12_bytes: &[u8], password: &str, xml_content: &str) -> Result<String, String> {
     // 1. Intentar firmar con Java (javax.xml.crypto.dsig) para 100% de compatibilidad SRI
     match firmar_xml_java(p12_bytes, password, xml_content) {
         Ok(signed_xml) => Ok(signed_xml),
         Err(e) => {
-            eprintln!("[FIRMANDOR] Java signer falló ({}), usando fallback Rust...", e);
+            eprintln!(
+                "[FIRMANDOR] Java signer falló ({}), usando fallback Rust...",
+                e
+            );
             firmar_xml_rust(p12_bytes, password, xml_content)
         }
     }
 }
 
-fn firmar_xml_java(
-    p12_bytes: &[u8],
-    password: &str,
-    xml_content: &str,
-) -> Result<String, String> {
+fn firmar_xml_java(p12_bytes: &[u8], password: &str, xml_content: &str) -> Result<String, String> {
     // Crear archivos temporales para p12 y xml
     let temp_dir = std::env::temp_dir();
     let p12_path = temp_dir.join(format!("cert_{}.p12", Uuid::new_v4()));
     let xml_path = temp_dir.join(format!("doc_{}.xml", Uuid::new_v4()));
 
-    fs::write(&p12_path, p12_bytes)
-        .map_err(|e| format!("Error guardando P12 temporal: {}", e))?;
+    fs::write(&p12_path, p12_bytes).map_err(|e| format!("Error guardando P12 temporal: {}", e))?;
     fs::write(&xml_path, xml_content.as_bytes())
         .map_err(|e| format!("Error guardando XML temporal: {}", e))?;
 
@@ -93,16 +87,12 @@ fn firmar_xml_java(
     }
 }
 
-fn firmar_xml_rust(
-    p12_bytes: &[u8],
-    password: &str,
-    xml_content: &str,
-) -> Result<String, String> {
+fn firmar_xml_rust(p12_bytes: &[u8], password: &str, xml_content: &str) -> Result<String, String> {
     let _legacy_prov = Provider::load(None, "legacy");
     let _default_prov = Provider::load(None, "default");
 
-    let pkcs12 = Pkcs12::from_der(p12_bytes)
-        .map_err(|e| format!("Error al leer el archivo .p12: {}", e))?;
+    let pkcs12 =
+        Pkcs12::from_der(p12_bytes).map_err(|e| format!("Error al leer el archivo .p12: {}", e))?;
 
     let parsed = pkcs12
         .parse2(password)
@@ -134,7 +124,9 @@ fn firmar_xml_rust(
         .map_err(|e| e.to_string())?;
 
     let uuid_str = Uuid::new_v4().to_string();
-    let signing_time = Local::now().format("%Y-%m-%dT%H:%M:%S%.3f-05:00").to_string();
+    let signing_time = Local::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3f-05:00")
+        .to_string();
 
     let factura_content = match xml_content.find("<factura") {
         Some(pos) => &xml_content[pos..],
@@ -185,7 +177,8 @@ fn firmar_xml_rust(
     );
 
     let signed_properties_digest_bytes = Sha256::digest(signed_properties_c14n.as_bytes());
-    let signed_properties_digest_b64 = base64::engine::general_purpose::STANDARD.encode(signed_properties_digest_bytes);
+    let signed_properties_digest_b64 =
+        base64::engine::general_purpose::STANDARD.encode(signed_properties_digest_bytes);
 
     let signed_info_inner = format!(
         "<ds:CanonicalizationMethod Algorithm=\"http://www.w3.org/TR/2001/REC-xml-c14n-20010315\"/>\n\
@@ -254,7 +247,11 @@ fn firmar_xml_rust(
 
     let xml_firmado = match xml_content.rfind("</factura>") {
         Some(pos) => format!("{}{}</factura>", &xml_content[..pos], signature_block),
-        None => return Err("XML inválido: no se encontró la etiqueta de cierre </factura>".to_string()),
+        None => {
+            return Err(
+                "XML inválido: no se encontró la etiqueta de cierre </factura>".to_string(),
+            );
+        }
     };
 
     Ok(xml_firmado)

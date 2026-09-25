@@ -2,12 +2,12 @@
 
 use crate::config::{cargar_configuracion, guardar_configuracion};
 use crate::db::clientes::{
-    buscar_cliente_por_identificacion, guardar_o_actualizar_cliente, listar_clientes, Cliente,
+    Cliente, buscar_cliente_por_identificacion, guardar_o_actualizar_cliente, listar_clientes,
 };
-use crate::db::facturas::{guardar_factura_db, listar_historial_facturas, FacturaGuardada};
+use crate::db::facturas::{FacturaGuardada, guardar_factura_db, listar_historial_facturas};
 use crate::db::productos::{
-    actualizar_producto, crear_producto, descontar_stock, eliminar_producto, listar_productos,
-    NuevoProductoRequest, Producto,
+    NuevoProductoRequest, Producto, actualizar_producto, crear_producto, descontar_stock,
+    eliminar_producto, listar_productos,
 };
 use crate::sri::clave_acceso::generar_clave_acceso;
 use crate::sri::client::SriClient;
@@ -15,10 +15,10 @@ use crate::sri::models::{EmisorConfig, FacturaRequest, RespuestaSRI};
 use crate::sri::xades_signer::firmar_xml;
 use crate::sri::xml_builder::construir_xml_factura;
 use axum::{
+    Json, Router,
     extract::{Multipart, Path, State},
     http::StatusCode,
     routing::{delete, get, post, put},
-    Json, Router,
 };
 use serde::Deserialize;
 use sqlx::SqlitePool;
@@ -41,7 +41,10 @@ pub struct FacturarPayload {
 
 use tower_http::services::{ServeDir, ServeFile};
 
-pub async fn iniciar_servidor_web(puerto: u16, db_pool: SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn iniciar_servidor_web(
+    puerto: u16,
+    db_pool: SqlitePool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let initial_config = cargar_configuracion();
     let state = AppState {
         config: Arc::new(Mutex::new(initial_config)),
@@ -63,7 +66,10 @@ pub async fn iniciar_servidor_web(puerto: u16, db_pool: SqlitePool) -> Result<()
         .route("/api/facturar", post(emitir_factura))
         // Rutas API de Inventario
         .route("/api/productos", get(get_productos).post(post_producto))
-        .route("/api/productos/{id}", put(put_producto).delete(del_producto))
+        .route(
+            "/api/productos/{id}",
+            put(put_producto).delete(del_producto),
+        )
         // Rutas API de Clientes
         .route("/api/clientes", get(get_clientes).post(post_cliente))
         .route("/api/clientes/{identificacion}", get(get_cliente_by_id))
@@ -73,7 +79,10 @@ pub async fn iniciar_servidor_web(puerto: u16, db_pool: SqlitePool) -> Result<()
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], puerto));
-    println!("Cacao Facturador & Inventario (Svelte 5 + Rust + SQLite) corriendo en: http://localhost:{}", puerto);
+    println!(
+        "Cacao Facturador & Inventario (Svelte 5 + Rust + SQLite) corriendo en: http://localhost:{}",
+        puerto
+    );
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
@@ -103,17 +112,28 @@ async fn upload_p12(
     let mut bytes_data = Vec::new();
     let mut filename = "firma.p12".to_string();
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
+    {
         if field.name() == Some("file") {
             if let Some(name) = field.file_name() {
                 filename = name.to_string();
             }
-            bytes_data = field.bytes().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?.to_vec();
+            bytes_data = field
+                .bytes()
+                .await
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
+                .to_vec();
         }
     }
 
     if bytes_data.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "No se subió ningún archivo".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "No se subió ningún archivo".to_string(),
+        ));
     }
 
     let mut dir_path = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
@@ -122,7 +142,8 @@ async fn upload_p12(
     dir_path.push(format!("uploads_{}", filename));
     let save_path_str = dir_path.to_string_lossy().to_string();
 
-    fs::write(&dir_path, &bytes_data).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    fs::write(&dir_path, &bytes_data)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut cfg = state.config.lock().unwrap();
     cfg.p12_path = Some(save_path_str.clone());
@@ -150,10 +171,15 @@ async fn delete_p12(
 
 /* ==================== ENDPOINTS DE INVENTARIO (SQLite) ==================== */
 
-async fn get_productos(State(state): State<AppState>) -> Result<Json<Vec<Producto>>, (StatusCode, String)> {
-    let productos = listar_productos(&state.db)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al consultar inventario en SQLite: {}", e)))?;
+async fn get_productos(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Producto>>, (StatusCode, String)> {
+    let productos = listar_productos(&state.db).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error al consultar inventario en SQLite: {}", e),
+        )
+    })?;
     Ok(Json(productos))
 }
 
@@ -161,9 +187,12 @@ async fn post_producto(
     State(state): State<AppState>,
     Json(req): Json<NuevoProductoRequest>,
 ) -> Result<Json<Producto>, (StatusCode, String)> {
-    let prod = crear_producto(&state.db, &req)
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Error al guardar producto en SQLite: {}", e)))?;
+    let prod = crear_producto(&state.db, &req).await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Error al guardar producto en SQLite: {}", e),
+        )
+    })?;
     Ok(Json(prod))
 }
 
@@ -174,7 +203,12 @@ async fn put_producto(
 ) -> Result<Json<Producto>, (StatusCode, String)> {
     let prod = actualizar_producto(&state.db, id, &req)
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Error al actualizar producto en SQLite: {}", e)))?;
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Error al actualizar producto en SQLite: {}", e),
+            )
+        })?;
     Ok(Json(prod))
 }
 
@@ -182,28 +216,38 @@ async fn del_producto(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    eliminar_producto(&state.db, id)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al eliminar producto: {}", e)))?;
+    eliminar_producto(&state.db, id).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error al eliminar producto: {}", e),
+        )
+    })?;
     Ok(Json(serde_json::json!({ "status": "deleted", "id": id })))
 }
 
 async fn get_facturas_historial(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<FacturaGuardada>>, (StatusCode, String)> {
-    let facturas = listar_historial_facturas(&state.db)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error consultando historial de facturas: {}", e)))?;
+    let facturas = listar_historial_facturas(&state.db).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error consultando historial de facturas: {}", e),
+        )
+    })?;
     Ok(Json(facturas))
 }
 
 /* ==================== ENDPOINTS DE CLIENTES ==================== */
 
-async fn get_clientes(State(state): State<AppState>) -> Result<Json<Vec<Cliente>>, (StatusCode, String)> {
-    listar_clientes(&state.db)
-        .await
-        .map(Json)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error consultando clientes: {}", e)))
+async fn get_clientes(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Cliente>>, (StatusCode, String)> {
+    listar_clientes(&state.db).await.map(Json).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error consultando clientes: {}", e),
+        )
+    })
 }
 
 async fn get_cliente_by_id(
@@ -213,7 +257,12 @@ async fn get_cliente_by_id(
     buscar_cliente_por_identificacion(&state.db, &identificacion)
         .await
         .map(Json)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Error buscando cliente: {}", e)))
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error buscando cliente: {}", e),
+            )
+        })
 }
 
 async fn post_cliente(
@@ -231,7 +280,12 @@ async fn post_cliente(
     )
     .await
     .map(Json)
-    .map_err(|e| (StatusCode::BAD_REQUEST, format!("Error guardando cliente: {}", e)))
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Error guardando cliente: {}", e),
+        )
+    })
 }
 
 /* ==================== EMISIÓN DE FACTURA + DESCUENTO DE INVENTARIO ==================== */
@@ -251,7 +305,8 @@ async fn emitir_factura(
         payload.factura.cliente.direccion.as_deref(),
         payload.factura.cliente.email.as_deref(),
         payload.factura.cliente.telefono.as_deref(),
-    ).await;
+    )
+    .await;
 
     // 1. Clave de acceso
     let clave = generar_clave_acceso(
@@ -263,7 +318,8 @@ async fn emitir_factura(
         &cfg.pto_emision,
         &payload.factura.secuencial,
         None,
-    ).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    )
+    .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     // 2. XML Unsigned
     let xml_unsigned = construir_xml_factura(&cfg, &payload.factura, &clave)
@@ -271,33 +327,49 @@ async fn emitir_factura(
 
     // 3. Firmar XML
     let p12_path = cfg.p12_path.clone().ok_or_else(|| {
-        (StatusCode::BAD_REQUEST, "Firma electrónica .p12 no configurada. Por favor sube tu archivo .p12".to_string())
+        (
+            StatusCode::BAD_REQUEST,
+            "Firma electrónica .p12 no configurada. Por favor sube tu archivo .p12".to_string(),
+        )
     })?;
 
     let p12_password = match payload.password_p12 {
         Some(ref p) if !p.trim().is_empty() => p.trim().to_string(),
         _ => match cfg.p12_password {
             Some(ref p) if !p.trim().is_empty() => p.trim().to_string(),
-            _ => return Err((
-                StatusCode::BAD_REQUEST,
-                "Contraseña de firma .p12 requerida. Por favor ingrésala en Configuración.".to_string()
-            )),
+            _ => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    "Contraseña de firma .p12 requerida. Por favor ingrésala en Configuración."
+                        .to_string(),
+                ));
+            }
         },
     };
 
     let p12_bytes = fs::read(&p12_path).map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Error al leer el archivo .p12 en '{}': {}", p12_path, e))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error al leer el archivo .p12 en '{}': {}", p12_path, e),
+        )
     })?;
 
-    let xml_firmado = firmar_xml(&p12_bytes, &p12_password, &xml_unsigned)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Error en firmado XAdES-BES: {}", e)))?;
+    let xml_firmado = firmar_xml(&p12_bytes, &p12_password, &xml_unsigned).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Error en firmado XAdES-BES: {}", e),
+        )
+    })?;
 
     // 4. Conectar con SRI
     let sri = SriClient::new(&cfg.ambiente);
 
     // Enviar a Recepción
     let recepcion = sri.enviar_recepcion(&xml_firmado).await.map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("Error en webservice de recepción SRI: {}", e))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error en webservice de recepción SRI: {}", e),
+        )
     })?;
 
     let mut respuesta = RespuestaSRI {
@@ -305,7 +377,11 @@ async fn emitir_factura(
         clave_acceso: clave.clone(),
         numero_autorizacion: None,
         fecha_autorizacion: None,
-        ambiente: if cfg.ambiente == "2" { "Producción".to_string() } else { "Pruebas".to_string() },
+        ambiente: if cfg.ambiente == "2" {
+            "Producción".to_string()
+        } else {
+            "Pruebas".to_string()
+        },
         mensajes: Vec::new(),
         xml_firmado: Some(xml_firmado.clone()),
         xml_autorizado: None,
@@ -317,13 +393,18 @@ async fn emitir_factura(
                 Some(i) if !i.trim().is_empty() => format!(" ({})", i.trim()),
                 _ => String::new(),
             };
-            respuesta.mensajes.push(format!("[{}] {}{}", m.tipo, m.mensaje, info));
+            respuesta
+                .mensajes
+                .push(format!("[{}] {}{}", m.tipo, m.mensaje, info));
         }
     }
 
     let es_recibida_o_procesando = recepcion.estado == "RECIBIDA"
         || respuesta.estado == "EN PROCESO"
-        || respuesta.mensajes.iter().any(|m| m.contains("EN PROCESAMIENTO") || m.contains("EN PROCESO"));
+        || respuesta
+            .mensajes
+            .iter()
+            .any(|m| m.contains("EN PROCESAMIENTO") || m.contains("EN PROCESO"));
 
     if es_recibida_o_procesando {
         for intento in 0..6 {
@@ -353,19 +434,29 @@ async fn emitir_factura(
                         }
                     }
 
-                    if respuesta.estado == "AUTORIZADO" || respuesta.estado == "RECHAZADO" || respuesta.estado == "NO AUTORIZADO" {
+                    if respuesta.estado == "AUTORIZADO"
+                        || respuesta.estado == "RECHAZADO"
+                        || respuesta.estado == "NO AUTORIZADO"
+                    {
                         break;
                     }
                 }
                 Err(e) => {
-                    respuesta.mensajes.push(format!("Error consultando autorización (intento {}): {}", intento + 1, e));
+                    respuesta.mensajes.push(format!(
+                        "Error consultando autorización (intento {}): {}",
+                        intento + 1,
+                        e
+                    ));
                 }
             }
         }
     }
 
     // 5. Si fue RECIBIDA o AUTORIZADA, descontar stock en SQLite y guardar comprobante
-    if respuesta.estado == "RECIBIDA" || respuesta.estado == "AUTORIZADO" || respuesta.estado == "EN PROCESAMIENTO" {
+    if respuesta.estado == "RECIBIDA"
+        || respuesta.estado == "AUTORIZADO"
+        || respuesta.estado == "EN PROCESAMIENTO"
+    {
         for d in &payload.factura.detalles {
             let _ = descontar_stock(&state.db, &d.codigo_principal, d.cantidad).await;
         }
@@ -392,7 +483,8 @@ async fn emitir_factura(
             &respuesta.estado,
             respuesta.xml_firmado.as_deref(),
             respuesta.xml_autorizado.as_deref(),
-        ).await;
+        )
+        .await;
     }
 
     Ok(Json(respuesta))

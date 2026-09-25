@@ -4,8 +4,8 @@ pub mod clientes;
 pub mod facturas;
 pub mod productos;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 
 pub async fn inicializar_db() -> Result<SqlitePool, Box<dyn std::error::Error>> {
@@ -16,7 +16,7 @@ pub async fn inicializar_db() -> Result<SqlitePool, Box<dyn std::error::Error>> 
     std::fs::create_dir_all(&db_dir)?;
 
     let target_db = db_dir.join("cacao_facturador.db");
-    
+
     // Migrar base de datos si existe en directorio local
     let local_db = std::path::PathBuf::from("cacao_facturador.db");
     if local_db.exists() && !target_db.exists() {
@@ -24,8 +24,7 @@ pub async fn inicializar_db() -> Result<SqlitePool, Box<dyn std::error::Error>> 
     }
 
     let db_url = format!("sqlite:{}?mode=rwc", target_db.to_string_lossy());
-    let options = SqliteConnectOptions::from_str(&db_url)?
-        .create_if_missing(true);
+    let options = SqliteConnectOptions::from_str(&db_url)?.create_if_missing(true);
 
     let pool = SqlitePoolOptions::new()
         .max_connections(10)

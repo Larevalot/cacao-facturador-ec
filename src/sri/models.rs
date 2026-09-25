@@ -9,15 +9,25 @@ pub struct EmisorConfig {
     pub nombre_comercial: Option<String>,
     pub dir_matriz: String,
     pub dir_establecimiento: String,
-    pub cod_establecimiento: String, // ej: "001"
-    pub pto_emision: String,         // ej: "001"
+    pub cod_establecimiento: String,   // ej: "001"
+    pub pto_emision: String,           // ej: "001"
     pub obligado_contabilidad: String, // "SI" o "NO"
     pub contribuyente_especial: Option<String>,
     pub regimen_microempresas: Option<String>,
     pub regimen_rimpe: Option<String>, // "CONTRIBUYENTE REGIMEN RIMPE" o "CONTRIBUYENTE NEGOCIO POPULAR - REGIMEN RIMPE"
-    pub ambiente: String,            // "1" (Pruebas), "2" (Producción)
+    pub ambiente: String,              // "1" (Pruebas), "2" (Producción)
     pub p12_path: Option<String>,
     pub p12_password: Option<String>,
+    #[serde(default)]
+    pub pin: Option<String>,
+    #[serde(default)]
+    pub logo_path: Option<String>,
+    #[serde(default = "default_plantilla_pdf")]
+    pub plantilla_pdf: String,
+}
+
+pub fn default_plantilla_pdf() -> String {
+    "clasica".to_string()
 }
 
 impl Default for EmisorConfig {
@@ -37,6 +47,9 @@ impl Default for EmisorConfig {
             ambiente: "1".to_string(), // Pruebas por defecto
             p12_path: None,
             p12_password: None,
+            pin: None,
+            logo_path: None,
+            plantilla_pdf: "clasica".to_string(),
         }
     }
 }
@@ -90,12 +103,14 @@ pub struct FormaPago {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FacturaRequest {
-    pub secuencial: String, // ej: "000000001"
+    pub secuencial: String,    // ej: "000000001"
     pub fecha_emision: String, // "DD/MM/AAAA"
     pub cliente: ClienteInfo,
     pub detalles: Vec<DetalleFactura>,
     pub formas_pago: Vec<FormaPago>,
     pub propina: f64,
+    #[serde(default)]
+    pub guia_remision: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

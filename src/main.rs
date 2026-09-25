@@ -1,11 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! Facturador Electrónico SRI Ecuador e Inventario (Rust + SQLite + SQLx + Tauri v2)
+//! Facturador Electrónico SRI Ecuador e Inventario (Rust + SQLite + SQLx + Iced GUI)
 //!
-//! Soporta modo Servidor Web (Axum), modo CLI por Consola y Aplicación de Escritorio Nativa (Tauri v2).
+//! Soporta modo Servidor Web (Axum), modo CLI por Consola y Aplicación de Escritorio Nativa (Iced).
 
 mod config;
 mod db;
+pub mod gui;
 mod sri;
 mod web;
 
@@ -25,16 +26,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _legacy_prov = openssl::provider::Provider::load(None, "legacy");
     let _default_prov = openssl::provider::Provider::load(None, "default");
 
-    #[cfg(target_os = "linux")]
-    {
-        if std::env::var("GDK_BACKEND").is_err() {
-            unsafe { std::env::set_var("GDK_BACKEND", "x11"); }
-        }
-        if std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").is_err() {
-            unsafe { std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1"); }
-        }
-    }
-
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = env::args().collect();
@@ -52,82 +43,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             web::iniciar_servidor_web(8080, pool).await
         })?;
     } else {
-        // Modo Aplicación de Escritorio Nativa (Tauri v2) + Servidor Axum local en segundo plano
+        // Modo Aplicación de Escritorio Nativa (Iced)
         println!("====================================================");
-        println!("  CACAO FACTURADOR & INVENTARIO (DESKTOP APP - TAURI v2)");
+        println!("  CACAO FACTURADOR & INVENTARIO (DESKTOP APP - ICED)");
         println!("====================================================");
 
-        std::thread::spawn(|| {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let pool = inicializar_db().await.expect("Error conectando a SQLite");
-                let _ = web::iniciar_servidor_web(8080, pool).await;
+        let rt = tokio::runtime::Runtime::new()?;
+        let pool =
+            rt.block_on(async { inicializar_db().await.expect("Error conectando a SQLite") });
+
+        // Iniciar servidor web Axum local en segundo plano (para integraciones o APIs)
+        let pool_server = pool.clone();
+        std::thread::spawn(move || {
+            let rt_server = tokio::runtime::Runtime::new().unwrap();
+            rt_server.block_on(async {
+                let _ = web::iniciar_servidor_web(8080, pool_server).await;
             });
         });
 
-        // Esperar activamente a que el servidor Axum esté completamente listo en 127.0.0.1:8080
-        let start = std::time::Instant::now();
-        while std::net::TcpStream::connect("127.0.0.1:8080").is_err() {
-            if start.elapsed() > std::time::Duration::from_secs(10) {
-                eprintln!("Tiempo de espera agotado al conectar con el servidor web.");
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-
-        tauri::Builder::default()
-            .invoke_handler(tauri::generate_handler![
-                minimize_window,
-                toggle_maximize_window,
-                close_window,
-                start_drag_window,
-                open_external_url
-            ])
-            .run(tauri::generate_context!())
-            .expect("Error al ejecutar la aplicación de escritorio Tauri");
+        // Lanzar interfaz nativa Iced
+        gui::run(pool)?;
     }
 
     Ok(())
-}
-
-#[tauri::command]
-fn open_external_url(url: String) {
-    #[cfg(target_os = "linux")]
-    {
-        let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let _ = std::process::Command::new("cmd").args(["/C", "start", "", &url]).spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open").arg(&url).spawn();
-    }
-}
-
-#[tauri::command]
-fn minimize_window(window: tauri::Window) {
-    let _ = window.minimize();
-}
-
-#[tauri::command]
-fn toggle_maximize_window(window: tauri::Window) {
-    if window.is_maximized().unwrap_or(false) {
-        let _ = window.unmaximize();
-    } else {
-        let _ = window.maximize();
-    }
-}
-
-#[tauri::command]
-fn close_window(window: tauri::Window) {
-    let _ = window.close();
-}
-
-#[tauri::command]
-fn start_drag_window(window: tauri::Window) {
-    let _ = window.start_dragging();
 }
 
 async fn ejecutar_modo_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -144,7 +82,14 @@ async fn ejecutar_modo_cli(args: &[String]) -> Result<(), Box<dyn std::error::Er
     let cfg = cargar_configuracion();
     println!("Emisor RUC: {}", cfg.ruc);
     println!("Razón Social: {}", cfg.razon_social);
-    println!("Ambiente SRI: {}", if cfg.ambiente == "2" { "Producción" } else { "Pruebas" });
+    println!(
+        "Ambiente SRI: {}",
+        if cfg.ambiente == "2" {
+            "Producción"
+        } else {
+            "Pruebas"
+        }
+    );
 
     let json_content = fs::read_to_string(json_path)
         .map_err(|e| format!("Error al abrir archivo {}: {}", json_path, e))?;
@@ -169,8 +114,12 @@ async fn ejecutar_modo_cli(args: &[String]) -> Result<(), Box<dyn std::error::Er
     fs::write("factura_unsigned.xml", &xml_unsigned)?;
     println!("XML sin firmar guardado en 'factura_unsigned.xml'");
 
-    let p12_path = cfg.p12_path.ok_or("Firma electrónica .p12 no configurada en config.json")?;
-    let p12_password = password_override.or(cfg.p12_password).ok_or("Contraseña de la firma .p12 requerida")?;
+    let p12_path = cfg
+        .p12_path
+        .ok_or("Firma electrónica .p12 no configurada en config.json")?;
+    let p12_password = password_override
+        .or(cfg.p12_password)
+        .ok_or("Contraseña de la firma .p12 requerida")?;
 
     let p12_bytes = fs::read(&p12_path)?;
     println!("Firmando XML con XAdES-BES...");
@@ -203,7 +152,10 @@ async fn ejecutar_modo_cli(args: &[String]) -> Result<(), Box<dyn std::error::Er
         println!("Comprobante Devuelto o con Errores:");
         for comp in recepcion.comprobantes {
             for m in comp.mensajes {
-                println!("   - [{}] {} ({:?})", m.tipo, m.mensaje, m.informacion_adicional);
+                println!(
+                    "   - [{}] {} ({:?})",
+                    m.tipo, m.mensaje, m.informacion_adicional
+                );
             }
         }
     }

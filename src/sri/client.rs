@@ -117,7 +117,10 @@ impl SriClient {
     }
 
     /// Consulta el estado del comprobante en el WebService de Autorización del SRI por su Clave de Acceso.
-    pub async fn consultar_autorizacion(&self, clave_acceso: &str) -> Result<ResultadoAutorizacion, String> {
+    pub async fn consultar_autorizacion(
+        &self,
+        clave_acceso: &str,
+    ) -> Result<ResultadoAutorizacion, String> {
         let soap_payload = format!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
             <soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ec=\"http://ec.gob.sri.ws.autorizacion\">\n\
@@ -202,7 +205,9 @@ fn parse_respuesta_autorizacion(xml_response: &str) -> Result<ResultadoAutorizac
         "NO AUTORIZADO".to_string()
     } else if xml_response.contains("<estado>EN PROCESO</estado>") {
         "EN PROCESO".to_string()
-    } else if xml_response.contains("<numeroComprobantes>0</numeroComprobantes>") || xml_response.contains("<autorizaciones/>") {
+    } else if xml_response.contains("<numeroComprobantes>0</numeroComprobantes>")
+        || xml_response.contains("<autorizaciones/>")
+    {
         "EN PROCESO".to_string()
     } else {
         "ERROR".to_string()
@@ -224,14 +229,18 @@ fn parse_respuesta_autorizacion(xml_response: &str) -> Result<ResultadoAutorizac
         } else {
             mensajes.push(MensajeSRI {
                 identificador: "DESCONOCIDO".to_string(),
-                mensaje: format!("Respuesta de Autorización SRI (Estado {}): {}", estado, xml_response),
+                mensaje: format!(
+                    "Respuesta de Autorización SRI (Estado {}): {}",
+                    estado, xml_response
+                ),
                 informacion_adicional: None,
                 tipo: "ERROR".to_string(),
             });
         }
     }
 
-    let xml_autorizado = extract_tag(xml_response, "comprobante");
+    let xml_autorizado = extract_tag(xml_response, "comprobante")
+        .map(|raw| crate::sri::xml_builder::unescape_xml(&raw));
 
     Ok(ResultadoAutorizacion {
         estado,
@@ -280,7 +289,11 @@ fn extract_tag(xml: &str, tag: &str) -> Option<String> {
     if let Some(start) = xml.find(&open_tag) {
         let content_start = start + open_tag.len();
         if let Some(end) = xml[content_start..].find(&close_tag) {
-            return Some(xml[content_start..content_start + end].trim().to_string());
+            let mut s = xml[content_start..content_start + end].trim().to_string();
+            if s.starts_with("<![CDATA[") && s.ends_with("]]>") {
+                s = s[9..s.len() - 3].trim().to_string();
+            }
+            return Some(s);
         }
     }
     None
